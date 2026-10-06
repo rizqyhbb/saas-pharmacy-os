@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Apotek OS — Roadmap</title>
+<style>
+  :root{
+    --bg:#f6f5f1; --surface:#ffffff; --ink:#1c2420; --muted:#5d6b64; --line:#dcdad2;
+    --v1:#1f6f5a; --v1-tint:#e3f1ec;
+    --v11:#2b5ea7; --v11-tint:#e4ecf8;
+    --p2:#9a6a12; --p2-tint:#f8efd9;
+    --p3:#6b4a8f; --p3-tint:#eee7f5;
+    --gate:#b3402a; --gate-tint:#f9e6e1;
+    --radius:10px;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 var(--sans)}
+  a{color:inherit}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+  header.top{background:var(--ink);color:#f3f1ea;padding:36px 0 28px}
+  header.top h1{margin:0 0 6px;font-size:28px;letter-spacing:-.01em}
+  header.top p{margin:0;color:#b9c4bd;max-width:70ch}
+  .meta{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:14px;font-size:13px;color:#9fb0a7}
+  nav.jump{position:sticky;top:0;z-index:5;background:rgba(246,245,241,.95);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+  nav.jump .wrap{display:flex;gap:4px;overflow-x:auto;padding:8px 20px}
+  nav.jump a{white-space:nowrap;text-decoration:none;font-size:13px;padding:6px 10px;border-radius:6px;color:var(--muted)}
+  nav.jump a:hover{background:#ebe9e1;color:var(--ink)}
+  section{padding:34px 0 6px}
+  h2{margin:0 0 4px;font-size:21px;letter-spacing:-.01em}
+  .lede{margin:0 0 18px;color:var(--muted);max-width:75ch}
+  .caveat{background:var(--p2-tint);border:1px solid #e6d4a3;border-radius:var(--radius);padding:12px 14px;font-size:13.5px;margin:0 0 6px}
+  .legend{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px}
+  .chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;border:1px solid transparent}
+  .chip i{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .c-v1{background:var(--v1-tint);color:var(--v1)} .c-v1 i{background:var(--v1)}
+  .c-v11{background:var(--v11-tint);color:var(--v11)} .c-v11 i{background:var(--v11)}
+  .c-p2{background:var(--p2-tint);color:var(--p2)} .c-p2 i{background:var(--p2)}
+  .c-p3{background:var(--p3-tint);color:var(--p3)} .c-p3 i{background:var(--p3)}
+  .c-gate{background:var(--gate-tint);color:var(--gate)} .c-gate i{background:var(--gate)}
+
+  /* timeline bar */
+  .track{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin:6px 0 4px}
+  .seg{border-radius:8px;padding:10px 10px 12px;min-height:84px;color:#fff;text-decoration:none;display:flex;flex-direction:column;justify-content:space-between}
+  .seg b{font-size:13px}.seg span{font-size:11.5px;opacity:.9}
+  .seg.v1{background:var(--v1)} .seg.v11{background:var(--v11)} .seg.p2{background:var(--p2)} .seg.p3{background:var(--p3)}
+  .release-row{display:grid;grid-template-columns:4fr 2fr 1fr;gap:6px;margin-bottom:8px;font-size:11.5px;color:var(--muted)}
+  .release-row div{border-top:2px solid var(--line);padding-top:4px}
+  .release-row .r1{border-color:var(--v1);color:var(--v1)} .release-row .r2{border-color:var(--v11);color:var(--v11)} .release-row .r3{border-color:var(--p2);color:var(--p2)}
+
+  /* milestone cards */
+  .ms{background:var(--surface);border:1px solid var(--line);border-left-width:5px;border-radius:var(--radius);padding:18px 20px;margin:0 0 16px}
+  .ms.v1{border-left-color:var(--v1)} .ms.v11{border-left-color:var(--v11)} .ms.p2{border-left-color:var(--p2)} .ms.p3{border-left-color:var(--p3)}
+  .ms header{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px;margin-bottom:8px}
+  .ms h3{margin:0;font-size:18px}
+  .ms .eff{font-size:12.5px;color:var(--muted);margin-left:auto}
+  .ms .goal{margin:0 0 12px;color:var(--muted)}
+  .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px 22px}
+  .cols h4{margin:0 0 5px;font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+  .cols ul{margin:0;padding-left:18px} .cols li{margin:2px 0}
+  .reqs{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+  .gatebox{margin-top:14px;background:var(--gate-tint);border:1px solid #efc7bd;border-radius:8px;padding:10px 12px}
+  .gatebox h4{color:var(--gate);margin:0 0 4px;font-size:11.5px;text-transform:uppercase;letter-spacing:.07em}
+  .gatebox ul{margin:0;padding-left:18px;font-size:13.5px}
+  .star{color:var(--gate);font-weight:700}
+
+  /* tables */
+  .tbl{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;font-size:14px}
+  .tbl th,.tbl td{padding:9px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+  .tbl th{background:#efede6;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+  .tbl tr:last-child td{border-bottom:0}
+  .scroll{overflow-x:auto}
+
+  /* tracks */
+  .lanes{display:grid;gap:10px}
+  .lane{display:grid;grid-template-columns:150px 1fr;gap:12px;align-items:stretch}
+  .lane .name{font-weight:600;font-size:13.5px;padding-top:8px}
+  .lane .bars{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+  .bar{font-size:12px;padding:8px 9px;border-radius:7px;border:1px dashed var(--line);color:var(--muted);background:var(--surface)}
+  .bar.on{border-style:solid;border-color:transparent;color:#fff}
+  .bar.on.k1{background:var(--v1)} .bar.on.k2{background:var(--v11)} .bar.on.k3{background:var(--p2)} .bar.on.k4{background:#5d6b64}
+  .mhead{display:grid;grid-template-columns:150px 1fr;gap:12px;margin-bottom:6px}
+  .mhead .cells{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;font-size:12px;font-weight:700;color:var(--muted);text-align:center}
+
+  .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+  .box{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px}
+  .box h3{margin:0 0 8px;font-size:15.5px}
+  .box ul{margin:0;padding-left:18px} .box li{margin:3px 0}
+  .never li::marker{color:var(--gate)}
+  footer{padding:30px 0 50px;color:var(--muted);font-size:13px}
+  code{font-family:var(--mono);font-size:.9em;background:#ebe9e1;padding:1px 5px;border-radius:4px}
+
+  @media (max-width:760px){
+    .track,.lane .bars,.mhead .cells{grid-template-columns:repeat(7,minmax(70px,1fr))}
+    .lane,.mhead{grid-template-columns:1fr}
+    .lane .name{padding-top:0}
+    .scroll-x{overflow-x:auto}
+    .release-row{grid-template-columns:1fr}
+    .ms .eff{margin-left:0}
+  }
+  @media print{
+    nav.jump{display:none} body{background:#fff} .ms,.box{break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <h1>Apotek OS — Roadmap</h1>
+    <p>A multi-tenant pharmacy operating system with a fast POS counter, for Indonesian apotek. Lean core first; prescriptions modelled from day one, shipped second.</p>
+    <div class="meta">
+      <span>Draft v0.1</span><span>6 October 2026</span><span>Companion to PRD.md</span><span>Product name is a placeholder</span>
+    </div>
+  </div>
+</header>
+
+<nav class="jump"><div class="wrap">
+  <a href="#overview">Overview</a><a href="#milestones">Milestones</a><a href="#parallel">Parallel tracks</a>
+  <a href="#gates">Gates</a><a href="#dependencies">Dependencies</a><a href="#later">Phase 2 &amp; 3</a>
+  <a href="#notdoing">Not doing</a><a href="#decisions">Decisions</a>
+</div></nav>
+
+<main class="wrap">
+
+<section id="overview">
+  <h2>Overview</h2>
+  <p class="lede">Seven milestones. M0–M3 deliver <b>MVP v1</b> (the lean core, piloted with one design-partner apotek). M4–M5 deliver <b>v1.1</b> (prescription, dispensing, compounding). M6+ is Phase 2 and Phase 3.</p>
+
+  <p class="caveat"><b>Estimates, not commitments.</b> Effort is shown in relative sizes (S/M/L/XL) and agent-assisted working weeks. These are guesses made before any code exists and before a design partner is confirmed. Re-estimate after M0. No calendar dates are promised.</p>
+
+  <div class="legend">
+    <span class="chip c-v1"><i></i>MVP v1</span>
+    <span class="chip c-v11"><i></i>v1.1 Prescription</span>
+    <span class="chip c-p2"><i></i>Phase 2</span>
+    <span class="chip c-p3"><i></i>Phase 3</span>
+    <span class="chip c-gate"><i></i>Gate / go–no-go</span>
+  </div>
+
+  <div class="release-row"><div class="r1">MVP v1 — M0 to M3</div><div class="r2">v1.1 — M4 to M5</div><div class="r3">Later — M6+</div></div>
+  <div class="track scroll-x">
+    <a class="seg v1" href="#m0"><b>M0</b><span>Foundation</span></a>
+    <a class="seg v1" href="#m1"><b>M1</b><span>Counter</span></a>
+    <a class="seg v1" href="#m2"><b>M2</b><span>Supply</span></a>
+    <a class="seg v1" href="#m3"><b>M3</b><span>Insight + pilot</span></a>
+    <a class="seg v11" href="#m4"><b>M4</b><span>Prescription core</span></a>
+    <a class="seg v11" href="#m5"><b>M5</b><span>Compounding</span></a>
+    <a class="seg p2" href="#later"><b>M6+</b><span>Phase 2 / 3</span></a>
+  </div>
+</section>
+
+<section id="milestones">
+  <h2>Milestones</h2>
+  <p class="lede">Each milestone ends in a gate. Do not start the next milestone's feature work while a <span class="star">★</span> criterion is open.</p>
+
+  <!-- M0 -->
+  <article class="ms v1" id="m0">
+    <header><span class="chip c-v1"><i></i>MVP v1</span><h3>M0 · Foundation</h3><span class="eff">Size XL · ~3–4 weeks (guess)</span></header>
+    <p class="goal">Everything later depends on this being correct. No screens polished yet; the domain, ledger and safety rails come first.</p>
+    <div class="cols">
+      <div><h4>Build</h4><ul>
+        <li>Repo scaffold: <code>apps/api</code>, <code>apps/pos</code>, <code>packages/domain</code>, <code>packages/contracts</code></li>
+        <li>Tenant / org / branch / location / workstation</li>
+        <li>Auth, nine roles, server-side permission matrix</li>
+        <li>Audit event writer (append-only)</li>
+        <li>Product, units, barcodes, regulatory profile</li>
+        <li>Batch + <b>inventory ledger</b> + balance projection</li>
+        <li>FEFO allocation + unit conversion (pure, tested)</li>
+        <li>Postgres RLS for tenancy</li>
+        <li>CI with integrity + isolation suites</li>
+      </ul></div>
+      <div><h4>Requirements</h4><p class="reqs">FND-1…8 · PRD-1…7, 9 · INV-1…8</p>
+        <h4 style="margin-top:12px">Stories</h4><p class="reqs">US-FND-1…6 · US-CAT-1…5, 7 · US-INV-1, 2, 3, 4, 7, 8</p></div>
+      <div><h4>Decide before / during</h4><ul>
+        <li>D7 multi-tenancy (default: shared schema + RLS)</li>
+        <li>A1 auth approach</li>
+        <li>A4 staging environment</li>
+        <li>D3 design partner identified</li>
+        <li>Run <a href="DISCOVERY-INTERVIEW.md">discovery interviews</a></li>
+      </ul></div>
+    </div>
+    <div class="gatebox"><h4>Gate G0</h4><ul>
+      <li><span class="star">★</span> Tenant-isolation suite: 0 leaks</li>
+      <li><span class="star">★</span> Ledger property tests: Σ ledger = balance, on-hand ≥ 0, replay idempotent</li>
+      <li>FEFO + unit tests incl. partial strip and decimal base units</li>
+      <li>Permission tests for all nine roles; audit event per sensitive mutation; CI required</li>
+    </ul></div>
+  </article>
+
+  <!-- M1 -->
+  <article class="ms v1" id="m1">
+    <header><span class="chip c-v1"><i></i>MVP v1</span><h3>M1 · Counter</h3><span class="eff">Size XL · ~3–4 weeks (guess)</span></header>
+    <p class="goal">A cashier can sell OTC fast, take payment, print a receipt, run a shift, and keep working when the internet drops.</p>
+    <div class="cols">
+      <div><h4>Build</h4><ul>
+        <li>Search / scan with offline index (&lt;150 ms p95, 20k SKUs)</li>
+        <li>Cart, unit select, discounts (permissioned), park/resume</li>
+        <li>Payments: cash, QRIS (manual confirm), transfer, card, split</li>
+        <li>Atomic sale commit + idempotency</li>
+        <li>Thermal receipt + share</li>
+        <li>Void vs refund (distinct)</li>
+        <li>Shift open / close, cash in/out, <b>blind close</b></li>
+        <li>Offline outbox, sync worker, per-transaction sync state</li>
+        <li>Rx-required / controlled block at OTC counter</li>
+      </ul></div>
+      <div><h4>Requirements</h4><p class="reqs">POS-1…12 · SHF-1…5 · SYN-1…6 · PRD-8</p>
+        <h4 style="margin-top:12px">Stories</h4><p class="reqs">US-POS-1…10 · US-SHF-1…4 · US-SYN-1…4 · US-CAT-6</p></div>
+      <div><h4>UI approach</h4><ul>
+        <li>All admin/POS screens via the <code>impeccable</code> skill</li>
+        <li>Counter is desktop/tablet-first; verify at ~390 px too</li>
+        <li>Write <code>DESIGN.md</code> before inventing tokens</li>
+        <li>D5 tax, D6 QRIS decided</li>
+      </ul></div>
+    </div>
+    <div class="gatebox"><h4>Gate G1 — kill checkpoint: does offline work on real hardware?</h4><ul>
+      <li><span class="star">★</span> Duplicate submit creates exactly one sale</li>
+      <li><span class="star">★</span> 8-hour offline soak: 0 lost, 0 duplicated sales</li>
+      <li><span class="star">★</span> Two workstations sell the last unit offline → flagged conflict, never a silent drop</li>
+      <li>≤ 4 interactions for a single-item sale; &lt;100 ms add-to-cart on target device</li>
+      <li>Receipt prints on two common 58/80 mm printers</li>
+    </ul></div>
+  </article>
+
+  <!-- M2 -->
+  <article class="ms v1" id="m2">
+    <header><span class="chip c-v1"><i></i>MVP v1</span><h3>M2 · Supply</h3><span class="eff">Size L · ~3 weeks (guess)</span></header>
+    <p class="goal">Stock gets in with batch and expiry, is counted honestly, and payables are tracked.</p>
+    <div class="cols">
+      <div><h4>Build</h4><ul>
+        <li>Suppliers, purchase orders (draft → approved → sent → received)</li>
+        <li>Goods receipt with <b>mandatory batch + expiry</b>; partial / over-shipment</li>
+        <li>Supplier invoice, due dates, partial payment, AP aging</li>
+        <li>Cost: batch cost + moving average</li>
+        <li>Stock opname (scan, variance, approval, adjustment)</li>
+        <li>Expiry bands and blocked-for-sale states</li>
+        <li>Defecta list (manual, below-ROP flag)</li>
+        <li>Stock card + batch drill-down</li>
+      </ul></div>
+      <div><h4>Requirements</h4><p class="reqs">PRC-1…8 · INV-9, 10 · RPT-9</p>
+        <h4 style="margin-top:12px">Stories</h4><p class="reqs">US-PRC-1…5 · US-INV-5, 6, 9</p></div>
+      <div><h4>Risks watched</h4><ul>
+        <li>R7 migration friction</li>
+        <li>R9 inventory model too rigid</li>
+        <li>R15 silent stock edits</li>
+      </ul></div>
+    </div>
+    <div class="gatebox"><h4>Gate G2</h4><ul>
+      <li>No batch exists without a receipt or opening-balance event</li>
+      <li>Receipt lines without batch/expiry cannot post</li>
+      <li>Opname variance posts only after approval</li>
+      <li>PO ↔ receipt ↔ invoice discrepancy is flagged</li>
+    </ul></div>
+  </article>
+
+  <!-- M3 -->
+  <article class="ms v1" id="m3">
+    <header><span class="chip c-v1"><i></i>MVP v1</span><h3>M3 · Insight + pilot launch</h3><span class="eff">Size L · ~3 weeks + 60-day pilot (guess)</span></header>
+    <p class="goal">The owner sees what needs attention, the design partner is onboarded in a day, and MVP v1 goes live in one real pharmacy.</p>
+    <div class="cols">
+      <div><h4>Build</h4><ul>
+        <li>Owner dashboard + Action Center (Critical → Info)</li>
+        <li>Sales, margin, inventory, expiry, procurement, shift, audit reports</li>
+        <li>CSV import: products, suppliers, opening stock with batch + expiry</li>
+        <li>CSV export of all lists</li>
+        <li>Onboarding flow; facility profile</li>
+        <li>Backups + rehearsed restore; staging environment</li>
+      </ul></div>
+      <div><h4>Requirements</h4><p class="reqs">RPT-1…9 · ACT-1, 2 · FND-7, 8, 9</p>
+        <h4 style="margin-top:12px">Stories</h4><p class="reqs">US-RPT-1…5 · US-ONB-1, 2 · US-FND-6</p></div>
+      <div><h4>Pilot cadence</h4><ul>
+        <li>Weekly session with owner + APJ</li>
+        <li>Day 14: using it for every sale?</li>
+        <li>Day 30: would they pay?</li>
+        <li>Re-baseline success targets after week 2</li>
+      </ul></div>
+    </div>
+    <div class="gatebox"><h4>Gate G3 — MVP v1 pilot launch</h4><ul>
+      <li><span class="star">★</span> Catalogue + opening stock (with batch/expiry) imported in ≤ 1 working day</li>
+      <li><span class="star">★</span> First full opname: 0 unexplained differences</li>
+      <li><span class="star">★</span> 0 open critical/high defects in integrity, security, tenant isolation</li>
+      <li>Owner reads expiry-at-risk and top-5 margin SKUs in &lt; 1 minute</li>
+      <li>Restore rehearsed; audit log reviewed independently; no unsupported regulatory claims in UI</li>
+    </ul></div>
+  </article>
+
+  <!-- M4 -->
+  <article class="ms v11" id="m4">
+    <header><span class="chip c-v11"><i></i>v1.1</span><h3>M4 · Prescription core</h3><span class="eff">Size XL · ~4–5 weeks (guess)</span></header>
+    <p class="goal">A prescription goes from intake to hand-over with an attributable pharmacist decision and an immutable dispense record. <b>Do not start without an APJ available for review.</b></p>
+    <div class="cols">
+      <div><h4>Build</h4><ul>
+        <li>Person → Customer / Patient split; access-logged patient records</li>
+        <li>Prescriber records</li>
+        <li>Prescription intake (original text kept verbatim, mapped separately)</li>
+        <li>Screening checklist: administrative / pharmaceutical / clinical</li>
+        <li>Approve / Hold / Contact-prescriber (pharmacist-only, server-enforced)</li>
+        <li>Prescription state machine + status history</li>
+        <li>Reservation, FEFO pick list, final check</li>
+        <li>Rx checkout (cashier only when READY), partial fill</li>
+        <li>Etiket printing; archive + search; medication history</li>
+        <li>Duplicate / repeat / copy detection</li>
+      </ul></div>
+      <div><h4>Requirements</h4><p class="reqs">RX-1…12, 14 · INV-11 · POS-14</p>
+        <h4 style="margin-top:12px">Stories</h4><p class="reqs">US-RX-1…13</p></div>
+      <div><h4>Explicitly not built</h4><ul>
+        <li>Interaction / allergy / dose engines authored from model knowledge</li>
+        <li>Autonomous approval or substitution</li>
+        <li>Offline cache of patient data</li>
+      </ul></div>
+    </div>
+    <div class="gatebox"><h4>Pre-condition</h4><ul>
+      <li><span class="star">★</span> A licensed APJ has agreed to review workflows weekly</li>
+      <li><span class="star">★</span> Counsel has reviewed UU PDP / health-data handling and retention <b>[VALIDATE]</b></li>
+    </ul></div>
+  </article>
+
+  <!-- M5 -->
+  <article class="ms v11" id="m5">
+    <header><span class="chip c-v11"><i></i>v1.1</span><h3>M5 · Compounding → v1.1 launch</h3><span class="eff">Size L · ~3 weeks (guess)</span></header>
+    <p class="goal">Racikan works with explainable quantities, ingredient batches are consumed correctly, and the pharmacist verifies before completion.</p>
+    <div class="cols">
+      <div><h4>Build</h4><ul>
+        <li>Compound session as a BOM-like structure</li>
+        <li>mg / g / ml / tablet calculations with visible rounding rules</li>
+        <li>Ingredient batch consumption (<code>COMPOUND_CONSUMPTION</code>)</li>
+        <li>Packaging components; tuslah and embalase charges</li>
+        <li>Pharmacist verification; BUD where configured</li>
+        <li>Prescription analytics (turnaround time, register)</li>
+      </ul></div>
+      <div><h4>Requirements</h4><p class="reqs">RX-13 · RPT-10</p>
+        <h4 style="margin-top:12px">Stories</h4><p class="reqs">US-CMP-1…3</p></div>
+    </div>
+    <div class="gatebox"><h4>Gate G4 — v1.1 launch</h4><ul>
+      <li><span class="star">★</span> APJ written approval of prescription, screening, dispensing and compounding workflows</li>
+      <li><span class="star">★</span> Cashier / TTK cannot approve, hold or change Rx state (API-tested)</li>
+      <li><span class="star">★</span> <code>DISPENSED</code> unreachable without an approved pharmacist review</li>
+      <li><span class="star">★</span> No patient data in logs, exports or demo (scanned)</li>
+      <li>Compound math explainable; rounding visible; etiket format approved by APJ</li>
+    </ul></div>
+  </article>
+</section>
+
+<section id="parallel">
+  <h2>Parallel tracks</h2>
+  <p class="lede">Work that is not feature code but gates the feature code.</p>
+  <div class="scroll"><div style="min-width:760px">
+    <div class="mhead"><div></div><div class="cells"><span>M0</span><span>M1</span><span>M2</span><span>M3</span><span>M4</span><span>M5</span><span>M6+</span></div></div>
+    <div class="lanes">
+      <div class="lane"><div class="name">Discovery &amp; partner</div><div class="bars">
+        <div class="bar on k4">Interviews · find partner</div><div class="bar on k4">Weekly feedback</div><div class="bar on k4">Import dry-run</div><div class="bar on k4">Pilot</div><div class="bar on k4">APJ review</div><div class="bar on k4">APJ review</div><div class="bar">…</div></div></div>
+      <div class="lane"><div class="name">Regulatory / counsel</div><div class="bars">
+        <div class="bar">Confirm sources</div><div class="bar">Tax (D5)</div><div class="bar">—</div><div class="bar on k3">Claims review</div><div class="bar on k3">UU PDP · retention</div><div class="bar on k3">Etiket · records</div><div class="bar on k3">SIPNAP · SATUSEHAT</div></div></div>
+      <div class="lane"><div class="name">Design system</div><div class="bars">
+        <div class="bar on k1">DESIGN.md (impeccable)</div><div class="bar on k1">Counter</div><div class="bar on k1">Back-office</div><div class="bar on k1">Dashboard</div><div class="bar on k2">Clinical bench</div><div class="bar on k2">Compounding</div><div class="bar">…</div></div></div>
+      <div class="lane"><div class="name">Landing &amp; demo</div><div class="bars">
+        <div class="bar">—</div><div class="bar">—</div><div class="bar">Name + positioning</div><div class="bar on k3">Landing + demo (taste)</div><div class="bar on k3">Iterate</div><div class="bar">—</div><div class="bar">…</div></div></div>
+      <div class="lane"><div class="name">Quality &amp; ops</div><div class="bars">
+        <div class="bar on k1">CI · isolation · ledger</div><div class="bar on k1">Offline soak</div><div class="bar on k1">Opname · import tests</div><div class="bar on k1">Backup / restore · staging</div><div class="bar on k2">Rx authz tests</div><div class="bar on k2">Patient-data scan</div><div class="bar on k3">Integration sandboxes</div></div></div>
+    </div>
+  </div></div>
+</section>
+
+<section id="gates">
+  <h2>Go / no-go checkpoints</h2>
+  <p class="lede">Questions that decide whether to continue, narrow, or stop. Full criteria in <code>SUCCESS-CRITERIA.md</code>.</p>
+  <div class="scroll"><table class="tbl">
+    <thead><tr><th>When</th><th>Question</th><th>If the answer is no</th></tr></thead>
+    <tbody>
+      <tr><td>End of M1</td><td>Does the offline counter work reliably on real hardware?</td><td>Fix before any supply-side work.</td></tr>
+      <tr><td>Pilot day 14</td><td>Is the partner using it for every sale?</td><td>Find the blocker; ship no new features.</td></tr>
+      <tr><td>Pilot day 30</td><td>Would they pay, and would they refer someone?</td><td>Re-interview; reconsider segment and pricing.</td></tr>
+      <tr><td>Before M4</td><td>Is an APJ available to review the prescription workflow?</td><td>Do not build v1.1 clinical features.</td></tr>
+      <tr><td>Before any "compliant / SIPNAP-ready" claim</td><td>Has an APJ validated it against current official rules?</td><td>Say "export" or "ledger", not "compliant".</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 style="margin:22px 0 8px;font-size:16px">MVP v1 "failed or needs rethink" if any of</h3>
+  <div class="box"><ul>
+    <li>Partner reverts to the old system or runs parallel records after day 30</li>
+    <li>Unexplained stock differences persist after two opname cycles</li>
+    <li>Any offline sale is lost or duplicated</li>
+    <li>A tenant-isolation or patient-data exposure occurs</li>
+    <li>Median sale time is slower than the partner's previous system</li>
+  </ul></div>
+</section>
+
+<section id="dependencies">
+  <h2>Critical dependencies</h2>
+  <div class="scroll"><table class="tbl">
+    <thead><tr><th>Dependency</th><th>Needed by</th><th>Risk if missing</th></tr></thead>
+    <tbody>
+      <tr><td>Design-partner apotek</td><td>M0 end (identified) · M3 (live)</td><td>Product built in a vacuum</td></tr>
+      <tr><td>Licensed APJ reviewer</td><td>Before M4</td><td>Wrong clinical workflow</td></tr>
+      <tr><td>Regulatory counsel (light-touch)</td><td>M3 claims · M4 UU PDP</td><td>Compliance claims we can't back</td></tr>
+      <tr><td>Thermal printer + barcode scanner on partner site</td><td>M1</td><td>Counter unusable</td></tr>
+      <tr><td>Licensed drug data source (KFA via SATUSEHAT; any interaction data)</td><td>Phase 2+</td><td>Temptation to invent clinical data — forbidden</td></tr>
+      <tr><td><code>taste</code> skill installed</td><td>Landing / demo (M3)</td><td>Fall back to <code>frontend-design</code> and tell the owner</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="later">
+  <h2>Phase 2 and Phase 3</h2>
+  <p class="lede">Not scheduled. Ordered by dependency and expected value; re-prioritise from pilot evidence.</p>
+  <div class="two">
+    <div class="box"><h3><span class="chip c-p2"><i></i>Phase 2 — Operations &amp; control</span></h3><ul>
+      <li>Explainable defecta / reorder engine; supplier scorecard</li>
+      <li>Multi-branch: transfers with in-transit, branch comparison</li>
+      <li>Customer returns → quarantine → decision <b>[VALIDATE]</b></li>
+      <li>Supplier returns; recall; destruction with witness <b>[VALIDATE]</b></li>
+      <li>Controlled-medicine module: ledger, permissions, period reconciliation, export <b>[VALIDATE]</b></li>
+      <li>Online order queue + prescription upload</li>
+      <li>SATUSEHAT connector + KFA sync <b>[VALIDATE]</b></li>
+      <li>Mobile stock opname · promotions · membership · WhatsApp · accounting export</li>
+    </ul></div>
+    <div class="box"><h3><span class="chip c-p3"><i></i>Phase 3 — Intelligence &amp; ecosystem</span></h3><ul>
+      <li>Advanced forecasting; centralised procurement</li>
+      <li>Advanced multi-branch analytics; supplier recommendations</li>
+      <li>Marketplace / e-commerce connectors</li>
+      <li>AI analytics assistant: anomaly detection, invoice OCR, natural-language reports</li>
+      <li>Expanded clinical documentation; advanced loyalty and finance</li>
+    </ul>
+    <p style="margin:10px 0 0;color:var(--muted);font-size:13.5px">AI sits after correct transactional data, and only as decision support. Never autonomous diagnosis, approval, or substitution.</p></div>
+  </div>
+</section>
+
+<section id="notdoing">
+  <h2>What we are deliberately not doing</h2>
+  <div class="two">
+    <div class="box never"><h3>Never</h3><ul>
+      <li>Hospital EMR, appointments, laboratory system</li>
+      <li>Diagnostic AI or autonomous clinical decisions</li>
+      <li>Automated clinical substitution</li>
+      <li>Authoring interaction / dose / allergy logic from model knowledge</li>
+    </ul></div>
+    <div class="box never"><h3>Not in v1 / v1.1</h3><ul>
+      <li>Full accounting ERP (we expose AP/AR + export)</li>
+      <li>Insurance / BPJS claims engine</li>
+      <li>Social-commerce marketplace</li>
+      <li>Heavy per-pharmacy configuration before the core is stable</li>
+    </ul></div>
+  </div>
+</section>
+
+<section id="decisions">
+  <h2>Decisions the owner needs to make</h2>
+  <div class="scroll"><table class="tbl">
+    <thead><tr><th>#</th><th>Decision</th><th>Proposed default</th><th>Needed by</th></tr></thead>
+    <tbody>
+      <tr><td>D1</td><td>Product name</td><td>Apotek OS (placeholder)</td><td>Before landing page</td></tr>
+      <tr><td>D2</td><td>Pricing model</td><td>Per-branch monthly; free pilot for the design partner</td><td>Before 2nd customer</td></tr>
+      <tr><td>D3</td><td>Design partner</td><td>One independent apotek with an engaged APJ</td><td>End of M0</td></tr>
+      <tr><td>D5</td><td>Tax handling</td><td>Configurable, default off, finance review</td><td>M1</td></tr>
+      <tr><td>D6</td><td>QRIS in v1</td><td>Record method + manual confirmation</td><td>M1</td></tr>
+      <tr><td>D7</td><td>Multi-tenancy</td><td>Shared schema + <code>tenant_id</code> + Postgres RLS</td><td>M0</td></tr>
+      <tr><td>D8 / A5</td><td>Hosting and region for health data</td><td>Fly.io + Supabase, Singapore — confirm with counsel</td><td>Before pilot</td></tr>
+      <tr><td>A4</td><td>Staging environment</td><td>Yes (tenants hold live data)</td><td>M3</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+</main>
+
+<footer><div class="wrap">
+  Source research: <code>research/apotek-pos-research-blueprint.md</code> (6 Oct 2026). This is a product plan, not legal or pharmacy-practice advice; items tagged <b>[VALIDATE]</b> need confirmation from a licensed Indonesian pharmacist and regulatory counsel.
+</div></footer>
+
+</body>
+</html>
