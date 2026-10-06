@@ -31,3 +31,6 @@ supabase/.temp/
 .next/
 next-env.d.ts
 *.tsbuildinfo
+
+# design prototypes (throwaway HTML, kept local only)
+prototypes/
