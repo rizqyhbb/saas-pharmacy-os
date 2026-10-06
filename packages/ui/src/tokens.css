@@ -1,0 +1,108 @@
+/*
+ * Apotek OS design tokens ("Klinik Tenang"). Source of truth for every surface:
+ * landing, demo, POS, back office. Documented in /DESIGN.md.
+ *
+ * Use from an app's Tailwind v4 entry stylesheet:
+ *   @import "tailwindcss";
+ *   @import "@apotek/ui/tokens.css";
+ *   @source "<path to>/packages/ui/src";
+ *
+ * One palette, one accent. Cool neutrals with a deep pharmacy green. Warn and
+ * danger only mark real state (near expiry, expired, blocked, offline queue),
+ * never decoration.
+ *
+ * Radius rule:
+ *   controls (buttons, inputs, segmented controls, tabs)  8px   rounded-control
+ *   panels (cards, photos, tables, dialogs)              16px   rounded-panel
+ *   status chips, switches                                full   rounded-full
+ */
+/*
+ * Theme. Light is the default and the only theme of the frontstore (landing, demo).
+ * App surfaces (POS, back office) opt in to dark on <html>:
+ *   data-theme="system"  follow the device setting
+ *   data-theme="dark"    always dark (a user toggle)
+ *   data-theme="light"   always light
+ * Each colour token holds both values with light-dark(light, dark); `color-scheme`
+ * picks one. Tailwind's `dark:` variant follows the same attribute (see below).
+ */
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+}
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+[data-theme="system"] {
+  color-scheme: light dark;
+}
+
+:root {
+  --bg: light-dark(#f4f6f5, #0c100e);
+  --surface: light-dark(#fbfcfb, #131916);
+  --surface-sunk: light-dark(#eaeeec, #0f1412);
+  --ink: light-dark(#121715, #e6ece9);
+  --muted: light-dark(#56615c, #98a59f);
+  --line: light-dark(#d6ddd9, #26302b);
+  --accent: light-dark(#0b6e52, #4cc39b);
+  --accent-hover: light-dark(#095c45, #63d0ab);
+  --accent-ink: light-dark(#f1faf6, #062419);
+  --accent-soft: light-dark(#dcefe7, #15372b);
+  --accent-soft-ink: light-dark(#0b6e52, #8fe0c2);
+  --warn: light-dark(#8a4b00, #f0b45c);
+  --warn-soft: light-dark(#f8ead3, #3a2a12);
+  --danger: light-dark(#a3241a, #f08a7e);
+  --danger-soft: light-dark(#f8dfdb, #3d1a16);
+  --panel-shadow: 0 28px 60px -32px light-dark(color-mix(in oklab, #0b2a20, transparent 55%), rgb(0 0 0 / 0.7));
+  --control-shadow: 0 1px 2px color-mix(in oklab, var(--ink), transparent 85%), 0 0 0 1px var(--line);
+}
+
+/* `dark:` utilities apply only where an app has opted in to dark. */
+@custom-variant dark {
+  &:where([data-theme="dark"], [data-theme="dark"] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where([data-theme="system"], [data-theme="system"] *) {
+      @slot;
+    }
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-sunk: var(--surface-sunk);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-soft-ink: var(--accent-soft-ink);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --radius-control: 8px;
+  --radius-panel: 16px;
+
+  --shadow-panel: var(--panel-shadow);
+  --shadow-control: var(--control-shadow);
+
+  /* Marketing type scale. Operational screens use the default Tailwind sizes. */
+  --text-display: clamp(2.15rem, 0.9rem + 2.4vw, 3rem);
+  --text-display--line-height: 1.08;
+  --text-display--letter-spacing: -0.035em;
+  --text-display--font-weight: 600;
+  --text-title: clamp(1.85rem, 1.2rem + 1.8vw, 2.6rem);
+  --text-title--line-height: 1.12;
+  --text-title--letter-spacing: -0.025em;
+  --text-title--font-weight: 600;
+  --text-lead: 1.12rem;
+  --text-lead--line-height: 1.6;
+}
