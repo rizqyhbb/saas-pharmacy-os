@@ -1,0 +1,75 @@
+@import "tailwindcss";
+/*
+ * Colours, radius, shadows and type scale come from the shared design system (DESIGN.md).
+ * The frontstore is always light: no data-theme on <html>, so tokens resolve to light.
+ */
+@import "@apotek/ui/tokens.css";
+@source "../../../../packages/ui/src";
+
+html {
+  scroll-padding-top: 5.25rem;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 17px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+@media (max-width: 767px) {
+  body {
+    font-size: 16px;
+  }
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* Hero load-in. Runs once, CSS only, so nothing waits for JavaScript. */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  .enter {
+    animation: rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: calc(var(--i, 0) * 80ms);
+  }
+
+  /* Sections rise in as they scroll into view, only where scroll-driven animation exists. */
+  @supports (animation-timeline: view()) {
+    .reveal {
+      animation: rise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 70%;
+    }
+  }
+
+  /* A ledger row that was just written. */
+  .fresh {
+    animation: fresh 1.6s ease-out;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    translate: 0 22px;
+  }
+}
+
+@keyframes fresh {
+  from {
+    background: color-mix(in oklab, var(--accent-soft) 90%, transparent);
+  }
+}
