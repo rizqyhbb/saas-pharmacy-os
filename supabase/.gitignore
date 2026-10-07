@@ -1,0 +1,11 @@
+# Supabase
+.branches
+.temp
+
+# dotenvx
+.env.keys
+.env.local
+.env.*.local
+
+# Local JWT signing key (generate with: supabase gen signing-key --algorithm ES256). Never commit.
+signing_keys.json
