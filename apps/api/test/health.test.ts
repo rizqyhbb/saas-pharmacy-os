@@ -1,8 +1,9 @@
 import { expect, test } from "bun:test";
-import { createApp } from "../src/app";
+import type { Sql } from "@apotek/db";
+import { testApp } from "./support";
 
-test("GET /health", async () => {
-  const response = await createApp().handle(new Request("http://localhost/health"));
+test("GET /health needs no database and no token", async () => {
+  const response = await testApp({} as Sql).handle(new Request("http://localhost/health"));
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual({ status: "ok", service: "apotek-api" });
 });
