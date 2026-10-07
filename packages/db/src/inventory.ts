@@ -10,6 +10,9 @@ import { RuleError } from "./errors";
  */
 
 export interface OpeningBalanceLine {
+  branchId: string;
+  locationId: string;
+  productId: string;
   /** Null only for products that don't track batches. */
   batch: { batchNumber: string; expiryDate: string; purchaseCostPerBase?: string | null } | null;
   baseQty: Qty;
@@ -19,18 +22,16 @@ export interface OpeningBalanceLine {
 
 export interface OpeningBalanceInput {
   tenantId: string;
-  branchId: string;
-  locationId: string;
-  productId: string;
   /** The client's idempotency key; also the opening-balance document id (L5). */
   documentId: string;
   actorStaffId: string;
+  /** One or many products and locations: a CSV import is one document. */
   lines: OpeningBalanceLine[];
 }
 
 export interface OpeningBalanceResult {
   replayed: boolean;
-  lines: { batchId: string | null; baseQty: string }[];
+  lines: { productId: string; locationId: string; batchId: string | null; baseQty: string }[];
 }
 
 const REFERENCE_TYPE = "opening_balance";
@@ -50,9 +51,20 @@ export async function recordOpeningBalance(tx: Tx, input: OpeningBalanceInput): 
   if (existing.length > 0) {
     const same =
       existing.length === input.lines.length &&
-      existing.every((row, i) => row.product_id === input.productId && row.location_id === input.locationId && parseQty(row.qty) === input.lines[i]!.baseQty);
+      existing.every((row, i) => {
+        const line = input.lines[i]!;
+        return row.product_id === line.productId && row.location_id === line.locationId && parseQty(row.qty) === line.baseQty;
+      });
     if (!same) throw new RuleError("IDEMPOTENCY_KEY_REUSED", `document ${input.documentId} was recorded with different lines`);
-    return { replayed: true, lines: existing.map((row) => ({ batchId: row.batch_id, baseQty: formatQty(parseQty(row.qty)) })) };
+    return {
+      replayed: true,
+      lines: existing.map((row) => ({
+        productId: row.product_id,
+        locationId: row.location_id,
+        batchId: row.batch_id,
+        baseQty: formatQty(parseQty(row.qty)),
+      })),
+    };
   }
 
   const lines: OpeningBalanceResult["lines"] = [];
@@ -61,7 +73,7 @@ export async function recordOpeningBalance(tx: Tx, input: OpeningBalanceInput): 
     if (line.batch) {
       const [created] = await tx<{ id: string }[]>`
         insert into app.batches (tenant_id, product_id, batch_number, expiry_date, purchase_cost_per_base)
-        values (${input.tenantId}, ${input.productId}, ${line.batch.batchNumber.trim()}, ${line.batch.expiryDate},
+        values (${input.tenantId}, ${line.productId}, ${line.batch.batchNumber.trim()}, ${line.batch.expiryDate},
                 ${line.batch.purchaseCostPerBase ?? null})
         on conflict (tenant_id, product_id, batch_number, expiry_date) do nothing
         returning id
@@ -71,7 +83,7 @@ export async function recordOpeningBalance(tx: Tx, input: OpeningBalanceInput): 
         (
           await tx<{ id: string }[]>`
             select id from app.batches
-            where product_id = ${input.productId} and batch_number = ${line.batch.batchNumber.trim()}
+            where product_id = ${line.productId} and batch_number = ${line.batch.batchNumber.trim()}
               and expiry_date = ${line.batch.expiryDate}`
         )[0]!.id;
     }
@@ -80,13 +92,13 @@ export async function recordOpeningBalance(tx: Tx, input: OpeningBalanceInput): 
         tenant_id, branch_id, location_id, product_id, batch_id, qty_delta_base, unit_context, event_type,
         reference_type, reference_id, actor_staff_id, idempotency_key
       ) values (
-        ${input.tenantId}, ${input.branchId}, ${input.locationId}, ${input.productId}, ${batchId},
+        ${input.tenantId}, ${line.branchId}, ${line.locationId}, ${line.productId}, ${batchId},
         ${formatQty(line.baseQty)}, ${tx.json(line.unitContext)}, 'OPENING_BALANCE',
         ${REFERENCE_TYPE}, ${input.documentId}, ${input.actorStaffId},
-        ${`${input.documentId}/${String(index).padStart(4, "0")}`}
+        ${`${input.documentId}/${String(index).padStart(5, "0")}`}
       )
     `;
-    lines.push({ batchId, baseQty: formatQty(line.baseQty) });
+    lines.push({ productId: line.productId, locationId: line.locationId, batchId, baseQty: formatQty(line.baseQty) });
   }
   return { replayed: false, lines };
 }

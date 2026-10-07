@@ -20,6 +20,7 @@ export {
   createProduct,
   getProduct,
   listProducts,
+  productsBySku,
   removeBarcode,
   SALES_CLASSES,
   setUnitPrice,

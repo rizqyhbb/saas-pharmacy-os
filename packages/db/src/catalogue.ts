@@ -201,7 +201,7 @@ const toView = (row: ProductRow): ProductView => ({
 });
 
 /** Products with units (base unit first) and barcodes. `ids` or `search` narrows. */
-async function selectProducts(tx: Tx, filter: { id?: string; search?: string; limit: number }): Promise<ProductView[]> {
+async function selectProducts(tx: Tx, filter: { id?: string; skus?: string[]; search?: string; limit: number }): Promise<ProductView[]> {
   const pattern = filter.search ? `%${filter.search.replace(/[%_\\]/g, (c) => `\\${c}`)}%` : null;
   const rows = await tx<ProductRow[]>`
     select p.id, p.sku, p.brand_name, p.generic_name, p.strength, p.dosage_form, p.route, p.manufacturer,
@@ -219,6 +219,7 @@ async function selectProducts(tx: Tx, filter: { id?: string; search?: string; li
       ), '[]') as units
     from app.products p
     where ${filter.id ? tx`p.id = ${filter.id}` : tx`true`}
+      and ${filter.skus ? tx`p.sku = any(${filter.skus})` : tx`true`}
       and ${
         pattern
           ? tx`(p.sku ilike ${pattern} or p.brand_name ilike ${pattern} or p.generic_name ilike ${pattern}
@@ -234,6 +235,10 @@ async function selectProducts(tx: Tx, filter: { id?: string; search?: string; li
 
 export async function getProduct(tx: Tx, productId: string): Promise<ProductView | null> {
   return (await selectProducts(tx, { id: productId, limit: 1 }))[0] ?? null;
+}
+
+export function productsBySku(tx: Tx, skus: string[]): Promise<ProductView[]> {
+  return skus.length === 0 ? Promise.resolve([]) : selectProducts(tx, { skus, limit: skus.length });
 }
 
 export function listProducts(tx: Tx, opts: { search?: string; limit?: number } = {}): Promise<ProductView[]> {
