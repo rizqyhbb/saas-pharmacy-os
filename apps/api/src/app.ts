@@ -61,6 +61,13 @@ import {
   workstationPatchBody,
 } from "./routes/organisation";
 import type { Reply, TenantScope } from "./scope";
+import {
+  exportProductsRoute,
+  exportStockRoute,
+  importOpeningStockRoute,
+  importProductsRoute,
+  templateRoute,
+} from "./routes/transfer";
 
 export interface AppDeps {
   db: Sql;
@@ -71,12 +78,15 @@ export interface AppDeps {
 const bearerToken = (header: string | undefined) => header?.match(/^Bearer\s+(\S+)$/i)?.[1] ?? null;
 const name = t.String({ minLength: 1, maxLength: 120 });
 
-/** Turns a handler's Reply into the response. */
-async function send(set: { status?: number | string }, pending: Promise<Reply>) {
-  const { status, body } = await pending;
-  set.status = status;
-  return body;
+/** Turns a handler's Reply into the response; a ready Response (a CSV file) passes through. */
+async function send(set: { status?: number | string }, pending: Promise<Reply | Response>) {
+  const result = await pending;
+  if (result instanceof Response) return result;
+  set.status = result.status;
+  return result.body;
 }
+
+const dryRunQuery = t.Object({ dryRun: t.Optional(t.String()) });
 
 /**
  * Every privileged action is checked on the server against the role stored in the
@@ -87,7 +97,9 @@ async function send(set: { status?: number | string }, pending: Promise<Reply>) 
  * Built separately from `listen()` so tests drive it through `app.handle(request)`.
  */
 export const createApp = ({ db, verifyToken, authAdmin }: AppDeps) =>
-  new Elysia()
+  // "typebox": strip unknown fields with TypeBox itself. The default (exact-mirror)
+  // can't handle the nullable unions in our bodies and warns on every request.
+  new Elysia({ normalize: "typebox" })
     .onError(({ error, code, set }) => {
       if (code === "VALIDATION" || code === "NOT_FOUND" || code === "PARSE") return;
       const failure = classifyDbError(error);
@@ -199,6 +211,20 @@ export const createApp = ({ db, verifyToken, authAdmin }: AppDeps) =>
           ({ scope, set, params, body }) => send(set, resolveIssueRoute(scope, params.issueId, body)),
           { body: resolveBody },
         )
+        // CSV import and export (FND-7)
+        .post("/imports/products", ({ scope, set, body, query }) => send(set, importProductsRoute(scope, body, query.dryRun === "true")), {
+          parse: "text",
+          query: dryRunQuery,
+        })
+        .post(
+          "/imports/opening-stock",
+          ({ scope, set, body, query }) => send(set, importOpeningStockRoute(scope, body, query.dryRun === "true")),
+          { parse: "text", query: dryRunQuery },
+        )
+        .get("/imports/products/template.csv", () => templateRoute("products"))
+        .get("/imports/opening-stock/template.csv", () => templateRoute("opening-stock"))
+        .get("/exports/products.csv", ({ scope, set }) => send(set, exportProductsRoute(scope)))
+        .get("/exports/stock.csv", ({ scope, set }) => send(set, exportStockRoute(scope)))
         // organisation (FND-2)
         .get("/branches", ({ scope, set }) => send(set, listBranchesRoute(scope)))
         .post("/branches", ({ scope, set, body }) => send(set, createBranchRoute(scope, body)), { body: branchBody })

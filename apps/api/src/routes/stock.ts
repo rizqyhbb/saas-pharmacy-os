@@ -69,6 +69,9 @@ export async function openingBalanceRoute(scope: TenantScope, body: Static<typeo
     if (product.tracksBatch && (!line.batchNumber || !line.expiryDate)) return reply(422, { error: "BATCH_REQUIRED", line: index });
     if (!product.tracksBatch && hasBatch) return reply(422, { error: "BATCH_NOT_TRACKED", line: index });
     lines.push({
+      branchId,
+      locationId: body.locationId,
+      productId: body.productId,
       batch: product.tracksBatch
         ? { batchNumber: line.batchNumber!, expiryDate: line.expiryDate!, purchaseCostPerBase: line.purchaseCostPerBase ?? null }
         : null,
@@ -80,9 +83,6 @@ export async function openingBalanceRoute(scope: TenantScope, body: Static<typeo
   const result = await inTenant(scope, async (tx) => {
     const recorded = await recordOpeningBalance(tx, {
       tenantId: scope.member.tenantId,
-      branchId,
-      locationId: body.locationId,
-      productId: body.productId,
       documentId,
       actorStaffId: scope.member.staffId,
       lines,

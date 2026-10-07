@@ -21,7 +21,7 @@ export const branchBody = t.Object({ name: name(120), timezone: t.Optional(timez
 export const branchPatchBody = t.Object({ name: t.Optional(name(120)), timezone: t.Optional(timezone) });
 export const nameBody = t.Object({ name: name(120) });
 export const workstationPatchBody = t.Object({ name: t.Optional(name(80)), active: t.Optional(t.Boolean()) });
-export const issuesQuery = t.Object({ open: t.Optional(t.BooleanString()) });
+export const issuesQuery = t.Object({ open: t.Optional(t.String()) });
 export const resolveBody = t.Object({ note: t.String({ minLength: 3, maxLength: 1000 }) });
 
 /** FND-2: the branches the caller works in, with their locations and workstations. */
@@ -111,7 +111,7 @@ export async function listIssuesRoute(scope: TenantScope, query: Static<typeof i
   const denied = await authorize(scope, "stock.read");
   if (denied) return denied;
   const issues = await inTenant(scope, async (tx) => {
-    const all = await listReconciliationIssues(tx, { openOnly: query.open ?? true });
+    const all = await listReconciliationIssues(tx, { openOnly: query.open !== "false" });
     const branches = visibleBranches(scope.member);
     if (!branches) return all;
     const visible: typeof all = [];
