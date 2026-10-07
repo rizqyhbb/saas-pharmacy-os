@@ -18,6 +18,18 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.1
       - run: pnpm install --frozen-lockfile
+      # Postgres only, with every migration applied. packages/db and apps/api run their
+      # integration suites (tenant isolation, ledger rules, permissions) against it.
+      # The signing key is throwaway; config.toml expects the file to exist.
+      - name: Start database
+        run: |
+          echo '[]' > supabase/signing_keys.json
+          supabase gen signing-key --algorithm ES256 --append || true
+          grep -q '"kid"' supabase/signing_keys.json
+          supabase db start
       - run: pnpm typecheck
       - run: pnpm test
