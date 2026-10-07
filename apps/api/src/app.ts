@@ -1,16 +1,25 @@
 import { Elysia, t } from "elysia";
-import { can, isRole, type Permission } from "@apotek/domain";
+import { classifyDbError, membershipsForUser, registerTenant, type Sql } from "@apotek/db";
+import type { VerifyToken } from "./auth";
 import {
-  classifyDbError,
-  membershipsForUser,
-  recordAudit,
-  registerTenant,
-  withContext,
-  type DbContext,
-  type Membership,
-  type Sql,
-} from "@apotek/db";
-import type { AuthUser, VerifyToken } from "./auth";
+  addBarcodeRoute,
+  barcodeBody,
+  classifyBody,
+  classifyProductRoute,
+  createProductRoute,
+  getProductRoute,
+  listProductsRoute,
+  priceBody,
+  productBody,
+  productPatchBody,
+  productQuery,
+  removeBarcodeRoute,
+  setPriceRoute,
+  updateProductRoute,
+} from "./routes/catalogue";
+import { auditQuery, changeRole, listAuditEvents, listLocations, listStaff, roleChangeBody } from "./routes/staff";
+import { batchStatusBody, batchStatusRoute, openingBalanceBody, openingBalanceRoute, stockCardRoute } from "./routes/stock";
+import type { Reply, TenantScope } from "./scope";
 
 export interface AppDeps {
   db: Sql;
@@ -18,41 +27,25 @@ export interface AppDeps {
 }
 
 const bearerToken = (header: string | undefined) => header?.match(/^Bearer\s+(\S+)$/i)?.[1] ?? null;
-
-const contextOf = (user: AuthUser, member: Membership): DbContext => ({
-  userId: user.userId,
-  tenantId: member.tenantId,
-  staffId: member.staffId,
-});
-
 const name = t.String({ minLength: 1, maxLength: 120 });
 
+/** Turns a handler's Reply into the response. */
+async function send(set: { status?: number | string }, pending: Promise<Reply>) {
+  const { status, body } = await pending;
+  set.status = status;
+  return body;
+}
+
 /**
- * Every privileged action is checked here, on the server, against the role stored
- * in the database (CLAUDE.md "Authorization is server-side"). Tenant routes live
- * under /tenants/:tenantId; a tenant the caller doesn't belong to answers 404, so
- * its existence isn't revealed.
+ * Every privileged action is checked on the server against the role stored in the
+ * database (CLAUDE.md "Authorization is server-side"). Tenant routes live under
+ * /tenants/:tenantId; a tenant the caller doesn't belong to answers 404, so its
+ * existence isn't revealed. Handlers live in ./routes and return a Reply.
  *
  * Built separately from `listen()` so tests drive it through `app.handle(request)`.
  */
-export const createApp = ({ db, verifyToken }: AppDeps) => {
-  /** 403, plus an audit event recording the attempt (US-FND-3). */
-  async function deny(user: AuthUser, member: Membership, permission: Permission, request: Request) {
-    await withContext(db, contextOf(user, member), (tx) =>
-      recordAudit(tx, {
-        tenantId: member.tenantId,
-        actorUserId: user.userId,
-        actorStaffId: member.staffId,
-        action: "permission.denied",
-        entityType: "permission",
-        entityId: permission,
-        after: { method: request.method, path: new URL(request.url).pathname, role: member.role },
-        requestId: request.headers.get("x-request-id"),
-      }),
-    );
-  }
-
-  return new Elysia()
+export const createApp = ({ db, verifyToken }: AppDeps) =>
+  new Elysia()
     .onError(({ error, code, set }) => {
       if (code === "VALIDATION" || code === "NOT_FOUND" || code === "PARSE") return;
       const failure = classifyDbError(error);
@@ -62,7 +55,7 @@ export const createApp = ({ db, verifyToken }: AppDeps) => {
       }
       if (failure?.kind === "UNIQUE") {
         set.status = 409;
-        return { error: "ALREADY_EXISTS" };
+        return { error: "ALREADY_EXISTS", constraint: failure.constraint };
       }
       // Never echo internals: messages can contain row data.
       console.error("[api] unhandled error", code, error instanceof Error ? error.name : typeof error);
@@ -92,112 +85,53 @@ export const createApp = ({ db, verifyToken }: AppDeps) => {
         })),
       };
     })
-    .post(
-      "/tenants",
-      async ({ user, body, status }) => {
-        const registered = await registerTenant(db, user.userId, body);
-        return status(201, registered);
-      },
-      { body: t.Object({ tenantName: name, branchName: name, ownerDisplayName: name }) },
-    )
+    .post("/tenants", async ({ user, body, status }) => status(201, await registerTenant(db, user.userId, body)), {
+      body: t.Object({ tenantName: name, branchName: name, ownerDisplayName: name }),
+    })
     .group("/tenants/:tenantId", (tenant) =>
       tenant
-        .resolve(async ({ params, user, status }) => {
+        .resolve(async ({ params, user, request, status }) => {
           const member = (await membershipsForUser(db, user.userId)).find((m) => m.tenantId === params.tenantId);
           if (!member) return status(404, { error: "TENANT_NOT_FOUND" });
-          return { member };
+          const scope: TenantScope = { db, user, member, request };
+          return { scope };
         })
-        .get("/staff", async ({ user, member, request, status }) => {
-          if (!can(member.role, "staff.read")) {
-            await deny(user, member, "staff.read", request);
-            return status(403, { error: "FORBIDDEN", permission: "staff.read" });
-          }
-          const staff = await withContext(db, contextOf(user, member), (tx) => tx<
-            { id: string; display_name: string; role: string; all_branches: boolean; active: boolean }[]
-          >`
-            select id, display_name, role::text as role, all_branches, active
-            from app.staff_members order by display_name`);
-          return {
-            staff: staff.map((s) => ({ staffId: s.id, displayName: s.display_name, role: s.role, allBranches: s.all_branches, active: s.active })),
-          };
+        // people and audit
+        .get("/staff", ({ scope, set }) => send(set, listStaff(scope)))
+        .patch("/staff/:staffId/role", ({ scope, set, params, body }) => send(set, changeRole(scope, params.staffId, body)), {
+          body: roleChangeBody,
         })
-        .patch(
-          "/staff/:staffId/role",
-          async ({ user, member, params, body, request, status }) => {
-            if (!can(member.role, "staff.manage")) {
-              await deny(user, member, "staff.manage", request);
-              return status(403, { error: "FORBIDDEN", permission: "staff.manage" });
-            }
-            if (!isRole(body.role)) return status(422, { error: "UNKNOWN_ROLE" });
-            const role = body.role;
-            const outcome = await withContext(db, contextOf(user, member), async (tx) => {
-              const [current] = await tx<{ role: string }[]>`
-                select role::text as role from app.staff_members where id = ${params.staffId} for update`;
-              if (!current) return "NOT_FOUND" as const;
-              if (current.role === "OWNER" && role !== "OWNER") {
-                const [owners] = await tx<{ n: number }[]>`
-                  select count(*)::int as n from app.staff_members where role = 'OWNER' and active`;
-                if (owners!.n <= 1) return "LAST_OWNER" as const;
-              }
-              await tx`update app.staff_members set role = ${role} where id = ${params.staffId}`;
-              await recordAudit(tx, {
-                tenantId: member.tenantId,
-                actorUserId: user.userId,
-                actorStaffId: member.staffId,
-                action: "staff.role.change",
-                entityType: "staff_member",
-                entityId: params.staffId,
-                before: { role: current.role },
-                after: { role },
-                reason: body.reason ?? null,
-                requestId: request.headers.get("x-request-id"),
-              });
-              return "OK" as const;
-            });
-            if (outcome === "NOT_FOUND") return status(404, { error: "STAFF_NOT_FOUND" });
-            if (outcome === "LAST_OWNER") return status(409, { error: "LAST_OWNER" });
-            return { staffId: params.staffId, role };
-          },
-          { body: t.Object({ role: t.String(), reason: t.Optional(t.String({ maxLength: 500 })) }) },
+        .get("/audit-events", ({ scope, set, query }) => send(set, listAuditEvents(scope, query)), { query: auditQuery })
+        .get("/locations", ({ scope, set }) => send(set, listLocations(scope)))
+        // catalogue
+        .get("/products", ({ scope, set, query }) => send(set, listProductsRoute(scope, query)), { query: productQuery })
+        .post("/products", ({ scope, set, body }) => send(set, createProductRoute(scope, body)), { body: productBody })
+        .get("/products/:productId", ({ scope, set, params }) => send(set, getProductRoute(scope, params.productId)))
+        .patch("/products/:productId", ({ scope, set, params, body }) => send(set, updateProductRoute(scope, params.productId, body)), {
+          body: productPatchBody,
+        })
+        .put(
+          "/products/:productId/classification",
+          ({ scope, set, params, body }) => send(set, classifyProductRoute(scope, params.productId, body)),
+          { body: classifyBody },
         )
-        .get(
-          "/audit-events",
-          async ({ user, member, request, query, status }) => {
-            if (!can(member.role, "audit.read")) {
-              await deny(user, member, "audit.read", request);
-              return status(403, { error: "FORBIDDEN", permission: "audit.read" });
-            }
-            const limit = query.limit ?? 100;
-            const events = await withContext(db, contextOf(user, member), (tx) => tx<
-              {
-                id: string;
-                action: string;
-                entity_type: string;
-                entity_id: string | null;
-                actor_staff_id: string | null;
-                before: unknown;
-                after: unknown;
-                reason: string | null;
-                created_at: Date;
-              }[]
-            >`
-              select id, action, entity_type, entity_id, actor_staff_id, before, after, reason, created_at
-              from app.audit_events order by created_at desc, id limit ${limit}`);
-            return {
-              events: events.map((e) => ({
-                id: e.id,
-                action: e.action,
-                entityType: e.entity_type,
-                entityId: e.entity_id,
-                actorStaffId: e.actor_staff_id,
-                before: e.before,
-                after: e.after,
-                reason: e.reason,
-                createdAt: e.created_at.toISOString(),
-              })),
-            };
-          },
-          { query: t.Object({ limit: t.Optional(t.Numeric({ minimum: 1, maximum: 500 })) }) },
-        ),
+        .put(
+          "/products/:productId/units/:unitId/price",
+          ({ scope, set, params, body }) => send(set, setPriceRoute(scope, params.productId, params.unitId, body)),
+          { body: priceBody },
+        )
+        .post("/products/:productId/barcodes", ({ scope, set, params, body }) => send(set, addBarcodeRoute(scope, params.productId, body)), {
+          body: barcodeBody,
+        })
+        .delete("/products/:productId/barcodes/:code", ({ scope, set, params }) =>
+          send(set, removeBarcodeRoute(scope, params.productId, decodeURIComponent(params.code))),
+        )
+        // stock
+        .get("/products/:productId/stock", ({ scope, set, params }) => send(set, stockCardRoute(scope, params.productId)))
+        .post("/stock/opening-balances", ({ scope, set, body }) => send(set, openingBalanceRoute(scope, body)), {
+          body: openingBalanceBody,
+        })
+        .put("/batches/:batchId/status", ({ scope, set, params, body }) => send(set, batchStatusRoute(scope, params.batchId, body)), {
+          body: batchStatusBody,
+        }),
     );
-};
