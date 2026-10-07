@@ -12,7 +12,19 @@ export type DbFailure =
   | { kind: "FOREIGN_KEY"; constraint: string | undefined }
   | { kind: "CHECK"; constraint: string | undefined };
 
+/** A business rule refused the operation in TypeScript rather than in Postgres. */
+export class RuleError extends Error {
+  constructor(
+    readonly rule: string,
+    detail: string,
+  ) {
+    super(`${rule}: ${detail}`);
+    this.name = "RuleError";
+  }
+}
+
 export function classifyDbError(error: unknown): DbFailure | null {
+  if (error instanceof RuleError) return { kind: "RULE", rule: error.rule, message: error.message };
   if (!(error instanceof postgres.PostgresError)) return null;
   const rule = /^([A-Z][A-Z_]+):/.exec(error.message)?.[1];
   if (rule) return { kind: "RULE", rule, message: error.message };

@@ -50,11 +50,20 @@ export interface TestProduct {
   stripUnitId: string;
 }
 
-/** Paracetamol-style product: tablet (base), strip = 10, box = 100. */
-export async function createProduct(tx: Tx, tenant: TestTenant, sku = `PCT-${crypto.randomUUID().slice(0, 8)}`): Promise<TestProduct> {
+/** Paracetamol-style product, classified OTC by the owner: tablet (base), strip = 10, box = 100. */
+export async function createProduct(
+  tx: Tx,
+  tenant: TestTenant,
+  sku = `PCT-${crypto.randomUUID().slice(0, 8)}`,
+  opts: { classified?: boolean } = {},
+): Promise<TestProduct> {
+  const classified = opts.classified ?? true;
   const [product] = await tx<{ id: string }[]>`
-    insert into app.products (tenant_id, sku, brand_name, generic_name, strength)
-    values (${tenant.tenantId}, ${sku}, 'Paracetamol', 'paracetamol', '500 mg')
+    insert into app.products (tenant_id, sku, brand_name, generic_name, strength, classified_at, classified_by)
+    values (
+      ${tenant.tenantId}, ${sku}, 'Paracetamol', 'paracetamol', '500 mg',
+      ${classified ? new Date() : null}, ${classified ? tenant.staffId : null}
+    )
     returning id
   `;
   const productId = product!.id;

@@ -126,6 +126,25 @@ describe.skipIf(!sql)("sellable batches (T3)", () => {
     });
   }
 
+  test("an unclassified or blocked product cannot be sold (US-CAT-4)", async () => {
+    const t = await createTenant(db);
+    const unclassified = await asTenant(db, t, async (tx) => {
+      const p = await createProduct(tx, t, undefined, { classified: false });
+      return { productId: p.productId, batchId: await openBatch(tx, t, p.productId, { qty: 10 }) };
+    });
+    const sale = await rejection(asTenant(db, t, (tx) => ledger(tx, t, { ...unclassified, eventType: "SALE", qty: -1 })));
+    expect(rule(sale)).toBe("PRODUCT_NOT_SELLABLE");
+
+    const blocked = await asTenant(db, t, async (tx) => {
+      const p = await createProduct(tx, t);
+      const batchId = await openBatch(tx, t, p.productId, { qty: 10 });
+      await tx`update app.products set blocked_for_sale = true where id = ${p.productId}`;
+      return { productId: p.productId, batchId };
+    });
+    const blockedSale = await rejection(asTenant(db, t, (tx) => ledger(tx, t, { ...blocked, eventType: "SALE", qty: -1 })));
+    expect(rule(blockedSale)).toBe("PRODUCT_NOT_SELLABLE");
+  });
+
   test("a batch-tracked product needs a batch on every ledger row", async () => {
     const t = await createTenant(db);
     const error = await rejection(
