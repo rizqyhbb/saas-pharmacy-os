@@ -2,6 +2,7 @@
 
 ## [UNRELEASED]
 
+- Staff management and facility profile: email invitations through Supabase (existing accounts linked), deactivation that locks people out immediately, branch assignments, and the apotek's NIB, permit and APJ details, all audited
 - Catalogue and opening-stock API: products with units and barcodes, pharmacist classification (unclassified products can't be sold), audited price changes, idempotent opening balances entered in any unit, batch quarantine/recall with reason, stock card, branch-scoped staff
 - M0 database and auth: Supabase (local), SQL migrations for tenancy, staff roles, audit, catalogue, batches and the append-only ledger with RLS; `packages/db` with tenant-isolation and ledger property tests; API verifies Supabase tokens and enforces the nine-role permission matrix
 - Design system "Klinik Tenang": `packages/ui` tokens and primitives, `DESIGN.md`; landing page and demo rebuilt on it, always light; dark mode is opt-in for app screens

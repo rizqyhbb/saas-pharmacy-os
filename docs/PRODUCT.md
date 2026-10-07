@@ -95,6 +95,9 @@ Meanings **in this product**. Use these words exactly in UI, code and comments.
 ### People
 - **Person:** an individual. May have a **Customer** profile (retail, loyalty) and/or a **Patient** profile (clinical, restricted). One does not imply the other.
 - **Prescriber:** the doctor (or authorised professional) who issued a prescription.
+- **Staff member:** a person's membership in one apotek, with exactly one role and the branches they may work in. One person can be a staff member of several apotek (an APJ who also works elsewhere). Deactivating a staff member locks them out of that apotek on their next request.
+- **Facility profile:** the apotek's legal identity: legal name, **NIB** (Nomor Induk Berusaha, the business identification number), pharmacy permit, the **APJ** (Apoteker Penanggung Jawab, the pharmacist legally responsible for the apotek) and their registration and practice-permit numbers, address, operating hours. Which fields are mandatory is still **[VALIDATE]** (research blueprint §4.3, checked 6 Oct 2026).
+- **Classified product:** a product whose sales class and controlled class were set by someone allowed to (pharmacist or owner). Unclassified products can't be sold or dispensed.
 
 ### Money and cash
 - **Sale:** a completed counter transaction. Net of refunds; excludes voids.
