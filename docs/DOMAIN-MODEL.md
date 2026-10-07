@@ -55,6 +55,7 @@ ProductBarcode (many per product/unit)
 **Invariant U1** — every product has exactly one unit with `multiplier_to_base = 1` (the base unit).
 **Invariant U2** — conversion is deterministic: `base_qty = unit_qty × multiplier_to_base`; no per-transaction rounding of base quantities.
 **Invariant U3** — `kfa_code` and `bpom_nie` are attributes, never keys.
+**Invariant C1** — a product can be sold or dispensed only once someone with `product.classify` (pharmacist or owner) has set its sales and controlled class, and while it isn't `blocked_for_sale`. Products created by other roles start unclassified. Enforced by the ledger trigger (`PRODUCT_NOT_SELLABLE`). Default chosen 7 Oct 2026; review with the design-partner APJ **[VALIDATE]**.
 
 Example: base `tablet`; `strip = 10`; `box = 100`. Buy 5 box → +500 tablet. Sell 2 strip → −20 tablet. Dispense 6 tablet → −6.
 

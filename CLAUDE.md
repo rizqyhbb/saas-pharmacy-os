@@ -19,7 +19,7 @@ Built so far:
   the clock/randomness.
 - `supabase/` — local Supabase (ports 5532x so it runs beside pos-local's 5432x), Auth with
   ES256 signing keys, SQL migrations as the schema source of truth:
-  tenancy/identity/audit, catalogue/batches/ledger/balances. Everything is in schema `app`
+  tenancy/identity/audit, catalogue/batches/ledger/balances, product classification. Everything is in schema `app`
   (not exposed to the Data API), RLS on every table, composite `(tenant_id, id)` foreign
   keys, append-only ledger and audit, balances written only by the ledger trigger, and
   U1/B1/B2/B3/T3/L1-L4 enforced in Postgres.
@@ -30,11 +30,17 @@ Built so far:
   property test against the domain reference model (G0-2), catalogue/batch rules,
   registration and audit. Skips locally without a DB, fails in CI.
 - `apps/api` — Elysia. Verifies Supabase access tokens via JWKS (`src/auth.ts`), resolves
-  membership and role from the DB per request. Routes: `GET /health`, `GET /me`,
-  `POST /tenants` (register: tenant + branch + main location + OWNER), and under
-  `/tenants/:tenantId`: `GET /staff`, `PATCH /staff/:staffId/role`, `GET /audit-events`.
-  Non-members get 404; missing permission gets 403 and a `permission.denied` audit event.
-  Permission matrix: `packages/domain/src/permissions.ts`, tested for all nine roles (G0-4).
+  membership and role from the DB per request. Handlers live in `src/routes/*` and return a
+  `Reply`; `src/scope.ts` has `authorize` (403 + `permission.denied` audit),
+  `authorizeBranch` (branch-scoped staff), `inTenant` and `audit`. Routes: `GET /health`,
+  `GET /me`, `POST /tenants`; under `/tenants/:tenantId`: staff list and role change, audit
+  log, locations, products (create with units + barcodes, list/search, get, edit,
+  classification, unit price, barcodes), `GET /products/:id/stock` (stock card),
+  `POST /stock/opening-balances` (needs an `Idempotency-Key` UUID header) and
+  `PUT /batches/:id/status`. Non-members get 404. A product created by someone without
+  `product.classify` stays unclassified and the database refuses to sell it.
+  Permission matrix: `packages/domain/src/permissions.ts`, tested for all nine roles on
+  every privileged route (G0-4); each audited action has a test (G0-5).
 - `packages/ui` (`@apotek/ui`) — the shared design system, documented in `DESIGN.md`:
   `tokens.css` (colour tokens as `light-dark()` pairs, radius, shadows, marketing type
   scale, as a Tailwind v4 theme; dark is opt-in per app via `data-theme` on `<html>`) and primitives (Button, Chip, Panel, Segmented, Switch, Tabs,
@@ -51,8 +57,8 @@ Built so far:
   for JS. Photos are Unsplash stand-ins (`src/assets/photos/CREDITS.md`).
   Open TODO: `PILOT_CONTACT_HREF` in `copy.ts` is a placeholder.
 
-Not started: `packages/contracts`, catalogue/stock API routes, staff invitation (Supabase
-admin invite), counter PIN switching, `apps/pos` (builds on `DESIGN.md` + `@apotek/ui`, via
+Not started: `packages/contracts`, staff invitation (Supabase admin invite), stock
+adjustment and opname, goods receipt, counter PIN switching, `apps/pos` (builds on `DESIGN.md` + `@apotek/ui`, via
 `impeccable`), prescription state machine (v1.1, needs APJ review). No hosted Supabase
 project yet (needs owner approval and the D8 hosting/region decision).
 
