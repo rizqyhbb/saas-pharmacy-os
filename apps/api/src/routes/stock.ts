@@ -2,6 +2,7 @@ import { t, type Static } from "elysia";
 import { formatQty, parseQty, toBase } from "@apotek/domain";
 import {
   branchOfLocation,
+  correctBatch,
   getProduct,
   recordOpeningBalance,
   setBatchStatus,
@@ -129,4 +130,31 @@ export async function stockCardRoute(scope: TenantScope, productId: string): Pro
     return stockCard(tx, productId, { branchIds: visibleBranches(scope.member) });
   });
   return card ? reply(200, { productId, ...card }) : reply(404, { error: "PRODUCT_NOT_FOUND" });
+}
+
+export const correctionBody = t.Object({
+  batchNumber: t.String({ minLength: 1, maxLength: 64 }),
+  expiryDate: t.String({ format: "date" }),
+  reason: t.String({ minLength: 3, maxLength: 500 }),
+});
+
+/** INV-8: a privileged fix for a mistyped batch number or expiry, with a reason, audited. */
+export async function correctBatchRoute(scope: TenantScope, batchId: string, body: Static<typeof correctionBody>): Promise<Reply> {
+  const denied = await authorize(scope, "batch.correct");
+  if (denied) return denied;
+  const change = await inTenant(scope, async (tx) => {
+    const changed = await correctBatch(tx, batchId, body);
+    if (changed) {
+      await audit(scope, tx, {
+        action: "batch.correct",
+        entityType: "batch",
+        entityId: batchId,
+        before: changed.before,
+        after: changed.after,
+        reason: body.reason,
+      });
+    }
+    return changed;
+  });
+  return change ? reply(200, { batchId, ...change.after }) : reply(404, { error: "BATCH_NOT_FOUND" });
 }

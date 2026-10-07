@@ -143,7 +143,7 @@ describe.skipIf(!sql)("stock API", () => {
     const ownerView = (await call(app, "GET", path(`/products/${p.id}/stock`), { userId: as("OWNER") })).body;
     expect(ownerView.batches).toHaveLength(2);
 
-    const locations = (await call(app, "GET", path("/locations"), { userId: as("WAREHOUSE") })).body.branches;
+    const locations = (await call(app, "GET", path("/branches"), { userId: as("WAREHOUSE") })).body.branches;
     expect(locations.map((b: { name: string }) => b.name)).toEqual(["Pusat"]);
   });
 

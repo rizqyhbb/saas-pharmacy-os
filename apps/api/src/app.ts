@@ -27,7 +27,6 @@ import {
   invitationBody,
   inviteStaff,
   listAuditEvents,
-  listLocations,
   listStaff,
   readFacility,
   roleChangeBody,
@@ -35,7 +34,32 @@ import {
   setBranches,
   writeFacility,
 } from "./routes/staff";
-import { batchStatusBody, batchStatusRoute, openingBalanceBody, openingBalanceRoute, stockCardRoute } from "./routes/stock";
+import {
+  batchStatusBody,
+  batchStatusRoute,
+  correctBatchRoute,
+  correctionBody,
+  openingBalanceBody,
+  openingBalanceRoute,
+  stockCardRoute,
+} from "./routes/stock";
+import {
+  branchBody,
+  branchPatchBody,
+  createBranchRoute,
+  createLocationRoute,
+  createWorkstationRoute,
+  issuesQuery,
+  listBranchesRoute,
+  listIssuesRoute,
+  nameBody,
+  renameLocationRoute,
+  resolveBody,
+  resolveIssueRoute,
+  updateBranchRoute,
+  updateWorkstationRoute,
+  workstationPatchBody,
+} from "./routes/organisation";
 import type { Reply, TenantScope } from "./scope";
 
 export interface AppDeps {
@@ -74,6 +98,12 @@ export const createApp = ({ db, verifyToken, authAdmin }: AppDeps) =>
       if (failure?.kind === "UNIQUE") {
         set.status = 409;
         return { error: "ALREADY_EXISTS", constraint: failure.constraint };
+      }
+      if (failure?.kind === "CHECK" || failure?.kind === "FOREIGN_KEY") {
+        // A value the schema refuses (min stock above max) or a reference to something
+        // outside this tenant: the request is wrong, say which rule without row data.
+        set.status = 422;
+        return { error: failure.kind === "CHECK" ? "INVALID_VALUE" : "INVALID_REFERENCE", constraint: failure.constraint };
       }
       // Never echo internals: messages can contain row data.
       console.error("[api] unhandled error", code, error instanceof Error ? error.name : typeof error);
@@ -129,7 +159,6 @@ export const createApp = ({ db, verifyToken, authAdmin }: AppDeps) =>
         .get("/facility", ({ scope, set }) => send(set, readFacility(scope)))
         .put("/facility", ({ scope, set, body }) => send(set, writeFacility(scope, body)), { body: facilityBody })
         .get("/audit-events", ({ scope, set, query }) => send(set, listAuditEvents(scope, query)), { query: auditQuery })
-        .get("/locations", ({ scope, set }) => send(set, listLocations(scope)))
         // catalogue
         .get("/products", ({ scope, set, query }) => send(set, listProductsRoute(scope, query)), { query: productQuery })
         .post("/products", ({ scope, set, body }) => send(set, createProductRoute(scope, body)), { body: productBody })
@@ -160,5 +189,36 @@ export const createApp = ({ db, verifyToken, authAdmin }: AppDeps) =>
         })
         .put("/batches/:batchId/status", ({ scope, set, params, body }) => send(set, batchStatusRoute(scope, params.batchId, body)), {
           body: batchStatusBody,
-        }),
+        })
+        .put("/batches/:batchId/correction", ({ scope, set, params, body }) => send(set, correctBatchRoute(scope, params.batchId, body)), {
+          body: correctionBody,
+        })
+        .get("/reconciliation-issues", ({ scope, set, query }) => send(set, listIssuesRoute(scope, query)), { query: issuesQuery })
+        .post(
+          "/reconciliation-issues/:issueId/resolution",
+          ({ scope, set, params, body }) => send(set, resolveIssueRoute(scope, params.issueId, body)),
+          { body: resolveBody },
+        )
+        // organisation (FND-2)
+        .get("/branches", ({ scope, set }) => send(set, listBranchesRoute(scope)))
+        .post("/branches", ({ scope, set, body }) => send(set, createBranchRoute(scope, body)), { body: branchBody })
+        .patch("/branches/:branchId", ({ scope, set, params, body }) => send(set, updateBranchRoute(scope, params.branchId, body)), {
+          body: branchPatchBody,
+        })
+        .post("/branches/:branchId/locations", ({ scope, set, params, body }) => send(set, createLocationRoute(scope, params.branchId, body)), {
+          body: nameBody,
+        })
+        .patch("/locations/:locationId", ({ scope, set, params, body }) => send(set, renameLocationRoute(scope, params.locationId, body)), {
+          body: nameBody,
+        })
+        .post(
+          "/branches/:branchId/workstations",
+          ({ scope, set, params, body }) => send(set, createWorkstationRoute(scope, params.branchId, body)),
+          { body: nameBody },
+        )
+        .patch(
+          "/workstations/:workstationId",
+          ({ scope, set, params, body }) => send(set, updateWorkstationRoute(scope, params.workstationId, body)),
+          { body: workstationPatchBody },
+        ),
     );

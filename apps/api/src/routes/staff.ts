@@ -11,7 +11,7 @@ import {
   updateFacility,
 } from "@apotek/db";
 import type { AuthAdmin } from "../auth-admin";
-import { audit, authorize, inTenant, reply, visibleBranches, type Reply, type TenantScope } from "../scope";
+import { audit, authorize, inTenant, reply, type Reply, type TenantScope } from "../scope";
 
 export const roleChangeBody = t.Object({ role: t.String(), reason: t.Optional(t.String({ maxLength: 500 })) });
 export const auditQuery = t.Object({ limit: t.Optional(t.Numeric({ minimum: 1, maximum: 500 })) });
@@ -218,25 +218,4 @@ export async function listAuditEvents(scope: TenantScope, query: Static<typeof a
       createdAt: e.created_at.toISOString(),
     })),
   });
-}
-
-/** Branches and their stock locations the caller may work in. */
-export async function listLocations(scope: TenantScope): Promise<Reply> {
-  const denied = await authorize(scope, "stock.read");
-  if (denied) return denied;
-  const branches = visibleBranches(scope.member);
-  const rows = await inTenant(scope, (tx) => tx<
-    { branch_id: string; branch_name: string; timezone: string; location_id: string; location_name: string }[]
-  >`
-    select b.id as branch_id, b.name as branch_name, b.timezone, l.id as location_id, l.name as location_name
-    from app.branches b join app.locations l on l.branch_id = b.id
-    where ${branches ? tx`b.id = any(${branches}::uuid[])` : tx`true`}
-    order by b.name, l.name`);
-  const byBranch = new Map<string, { branchId: string; name: string; timezone: string; locations: { locationId: string; name: string }[] }>();
-  for (const row of rows) {
-    const branch = byBranch.get(row.branch_id) ?? { branchId: row.branch_id, name: row.branch_name, timezone: row.timezone, locations: [] };
-    branch.locations.push({ locationId: row.location_id, name: row.location_name });
-    byBranch.set(row.branch_id, branch);
-  }
-  return reply(200, { branches: [...byBranch.values()] });
 }

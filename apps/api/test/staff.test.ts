@@ -69,7 +69,7 @@ describe.skipIf(!sql)("staff management and facility profile", () => {
 
   test("deactivation needs a reason, locks the person out, and is audited", async () => {
     const target = t.staff.TECHNICIAN;
-    const tenantRoute = () => call(app, "GET", path("/locations"), { userId: target.userId });
+    const tenantRoute = () => call(app, "GET", path("/branches"), { userId: target.userId });
     expect((await tenantRoute()).status).toBe(200);
 
     const noReason = await call(app, "PATCH", path(`/staff/${target.staffId}/active`), { userId: as("OWNER"), body: { active: false } });

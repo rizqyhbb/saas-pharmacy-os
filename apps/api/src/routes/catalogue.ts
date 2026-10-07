@@ -14,12 +14,12 @@ import {
 } from "@apotek/db";
 import { audit, authorize, inTenant, reply, type Reply, type TenantScope } from "../scope";
 
+/** Decimal with up to 4 fractional digits, matching numeric(18,4). */
+export const QTY_PATTERN = "^\\d{1,14}(\\.\\d{1,4})?$";
 const text = (max: number) => t.String({ minLength: 1, maxLength: max });
 const optionalText = (max: number) => t.Optional(t.Union([t.String({ maxLength: max }), t.Null()]));
 const salesClass = t.Union(SALES_CLASSES.map((v) => t.Literal(v)));
 const controlledClass = t.Union(CONTROLLED_CLASSES.map((v) => t.Literal(v)));
-/** Decimal with up to 4 fractional digits, matching numeric(18,4). */
-export const QTY_PATTERN = "^\\d{1,14}(\\.\\d{1,4})?$";
 const barcode = t.String({ pattern: "^\\S{1,64}$" });
 const price = t.Union([t.Integer({ minimum: 0, maximum: 1_000_000_000 }), t.Null()]);
 
@@ -34,6 +34,15 @@ const details = {
   kfaCode: optionalText(64),
   bpomNie: optionalText(64),
   coldChain: t.Optional(t.Boolean()),
+  category: optionalText(80),
+  packageDescription: optionalText(160),
+  compoundingIngredient: t.Optional(t.Boolean()),
+  /** Stock levels in base units (PRD-7). */
+  minStock: t.Optional(t.Union([t.String({ pattern: QTY_PATTERN }), t.Null()])),
+  maxStock: t.Optional(t.Union([t.String({ pattern: QTY_PATTERN }), t.Null()])),
+  safetyStock: t.Optional(t.Union([t.String({ pattern: QTY_PATTERN }), t.Null()])),
+  reorderPoint: t.Optional(t.Union([t.String({ pattern: QTY_PATTERN }), t.Null()])),
+  defaultLocationId: t.Optional(t.Union([t.String({ format: "uuid" }), t.Null()])),
 };
 
 export const productBody = t.Object({
