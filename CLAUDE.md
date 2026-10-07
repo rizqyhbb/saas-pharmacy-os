@@ -20,7 +20,9 @@ Built so far:
 - `supabase/` — local Supabase (ports 5532x so it runs beside pos-local's 5432x), Auth with
   ES256 signing keys, SQL migrations as the schema source of truth:
   tenancy/identity/audit, catalogue/batches/ledger/balances, product classification,
-  facility profile. Everything is in schema `app`
+  facility profile, workstations, batch correction (`app.correct_batch`), balance rebuild,
+  and a nightly pg_cron job `apotek-nightly` (00:30 WIB: expire batches, raise
+  `reconciliation_issues`). Everything is in schema `app`
   (not exposed to the Data API), RLS on every table, composite `(tenant_id, id)` foreign
   keys, append-only ledger and audit, balances written only by the ledger trigger, and
   U1/B1/B2/B3/T3/L1-L4 enforced in Postgres.
@@ -37,7 +39,7 @@ Built so far:
   `GET /me`, `POST /tenants`; under `/tenants/:tenantId`: staff list, invitations (existing
   accounts are linked, new ones get a Supabase invite via `src/auth-admin.ts` with the
   server-only `SUPABASE_SECRET_KEY`), role, active and branch changes, facility profile,
-  audit log, locations, products (create with units + barcodes, list/search, get, edit,
+  audit log, branches/locations/workstations, batch correction, reconciliation issues, products (create with units + barcodes, list/search, get, edit,
   classification, unit price, barcodes), `GET /products/:id/stock` (stock card),
   `POST /stock/opening-balances` (needs an `Idempotency-Key` UUID header) and
   `PUT /batches/:id/status`. Non-members get 404. A product created by someone without

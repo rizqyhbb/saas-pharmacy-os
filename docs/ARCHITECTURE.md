@@ -91,7 +91,7 @@ inventory_ledger(
 ```
 
 - Insert-only. Corrections are **new compensating events**. Enforced in Postgres: append-only triggers, no `UPDATE`/`DELETE` grant, sign rules as a check constraint.
-- `inventory_balance(tenant, branch, location, product, batch, on_hand, reserved)` is maintained transactionally in the same commit as the ledger insert (an `AFTER INSERT` trigger, `app.apply_ledger_event`, the only writer; it also enforces L3/L4 and T3) and has a **rebuild-from-ledger** job plus a nightly **reconciliation check**; a mismatch raises a Critical Action Center item.
+- `inventory_balance(tenant, branch, location, product, batch, on_hand, reserved)` is maintained transactionally in the same commit as the ledger insert (an `AFTER INSERT` trigger, `app.apply_ledger_event`, the only writer; it also enforces L3/L4 and T3) and has a **rebuild-from-ledger** job (`app.rebuild_balances`) plus a nightly **reconciliation check** (pg_cron `apotek-nightly`, 00:30 WIB, also materialises expiry); a mismatch becomes a row in `app.reconciliation_issues`, the future Critical Action Center item.
 - Allocation (FEFO) runs inside the sale/dispense transaction with row locks on candidate batch balances to prevent double-allocation.
 - Period close: after close, back-dated events are rejected; fixes use privileged adjustments dated in the open period.
 
