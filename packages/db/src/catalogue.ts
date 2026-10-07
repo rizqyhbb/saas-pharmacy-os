@@ -34,6 +34,15 @@ export interface ProductDetails {
   kfaCode?: string | null;
   bpomNie?: string | null;
   coldChain?: boolean;
+  category?: string | null;
+  packageDescription?: string | null;
+  compoundingIngredient?: boolean;
+  /** Stock levels in base units, decimal strings (PRD-7). */
+  minStock?: string | null;
+  maxStock?: string | null;
+  safetyStock?: string | null;
+  reorderPoint?: string | null;
+  defaultLocationId?: string | null;
 }
 
 export interface ProductInput extends ProductDetails {
@@ -81,11 +90,14 @@ export async function createProduct(
   const [product] = await tx<{ id: string }[]>`
     insert into app.products (
       tenant_id, sku, brand_name, generic_name, strength, dosage_form, route, manufacturer,
-      kfa_code, bpom_nie, cold_chain, tracks_batch, sales_class, controlled_class, classified_at, classified_by
+      kfa_code, bpom_nie, cold_chain, category, package_description, compounding_ingredient, min_stock, max_stock,
+      safety_stock, reorder_point, default_location_id, tracks_batch, sales_class, controlled_class, classified_at, classified_by
     ) values (
       ${tenantId}, ${input.sku.trim()}, ${input.brandName.trim()}, ${input.genericName ?? null}, ${input.strength ?? null},
       ${input.dosageForm ?? null}, ${input.route ?? null}, ${input.manufacturer ?? null}, ${input.kfaCode ?? null},
-      ${input.bpomNie ?? null}, ${input.coldChain ?? false}, ${input.tracksBatch ?? true},
+      ${input.bpomNie ?? null}, ${input.coldChain ?? false}, ${input.category ?? null}, ${input.packageDescription ?? null},
+      ${input.compoundingIngredient ?? false}, ${input.minStock ?? null}, ${input.maxStock ?? null}, ${input.safetyStock ?? null},
+      ${input.reorderPoint ?? null}, ${input.defaultLocationId ?? null}, ${input.tracksBatch ?? true},
       ${classification?.salesClass ?? "OTC"}, ${classification?.controlledClass ?? "NONE"},
       ${classification ? tx`now()` : null}, ${classification?.classifiedBy ?? null}
     )
@@ -122,6 +134,14 @@ type ProductRow = {
   kfa_code: string | null;
   bpom_nie: string | null;
   cold_chain: boolean;
+  category: string | null;
+  package_description: string | null;
+  compounding_ingredient: boolean;
+  min_stock: string | null;
+  max_stock: string | null;
+  safety_stock: string | null;
+  reorder_point: string | null;
+  default_location_id: string | null;
   tracks_batch: boolean;
   sales_class: SalesClass;
   controlled_class: ControlledClass;
@@ -139,6 +159,8 @@ type ProductRow = {
   }[];
 };
 
+const level = (value: string | null) => (value === null ? null : formatQty(parseQty(value)));
+
 const toView = (row: ProductRow): ProductView => ({
   id: row.id,
   sku: row.sku,
@@ -151,6 +173,14 @@ const toView = (row: ProductRow): ProductView => ({
   kfaCode: row.kfa_code,
   bpomNie: row.bpom_nie,
   coldChain: row.cold_chain,
+  category: row.category,
+  packageDescription: row.package_description,
+  compoundingIngredient: row.compounding_ingredient,
+  minStock: level(row.min_stock),
+  maxStock: level(row.max_stock),
+  safetyStock: level(row.safety_stock),
+  reorderPoint: level(row.reorder_point),
+  defaultLocationId: row.default_location_id,
   tracksBatch: row.tracks_batch,
   salesClass: row.sales_class,
   controlledClass: row.controlled_class,
@@ -175,7 +205,9 @@ async function selectProducts(tx: Tx, filter: { id?: string; search?: string; li
   const pattern = filter.search ? `%${filter.search.replace(/[%_\\]/g, (c) => `\\${c}`)}%` : null;
   const rows = await tx<ProductRow[]>`
     select p.id, p.sku, p.brand_name, p.generic_name, p.strength, p.dosage_form, p.route, p.manufacturer,
-      p.kfa_code, p.bpom_nie, p.cold_chain, p.tracks_batch, p.sales_class::text as sales_class,
+      p.kfa_code, p.bpom_nie, p.cold_chain, p.category, p.package_description, p.compounding_ingredient,
+      p.min_stock::text as min_stock, p.max_stock::text as max_stock, p.safety_stock::text as safety_stock,
+      p.reorder_point::text as reorder_point, p.default_location_id, p.tracks_batch, p.sales_class::text as sales_class,
       p.controlled_class::text as controlled_class, p.blocked_for_sale, p.classified_at, p.classified_by,
       coalesce((
         select json_agg(json_build_object(
@@ -222,6 +254,14 @@ export async function updateProductDetails(tx: Tx, productId: string, patch: Par
     kfaCode: "kfa_code",
     bpomNie: "bpom_nie",
     coldChain: "cold_chain",
+    category: "category",
+    packageDescription: "package_description",
+    compoundingIngredient: "compounding_ingredient",
+    minStock: "min_stock",
+    maxStock: "max_stock",
+    safetyStock: "safety_stock",
+    reorderPoint: "reorder_point",
+    defaultLocationId: "default_location_id",
   };
   for (const [key, column] of Object.entries(map) as [keyof ProductDetails, string][]) {
     if (patch[key] !== undefined) columns[column] = typeof patch[key] === "string" ? (patch[key] as string).trim() : patch[key];

@@ -226,3 +226,22 @@ export async function branchOfLocation(tx: Tx, locationId: string): Promise<stri
   const [row] = await tx<{ branch_id: string }[]>`select branch_id from app.locations where id = ${locationId}`;
   return row?.branch_id ?? null;
 }
+
+/**
+ * INV-8: fixes a mistyped batch number or expiry. Only through the database function,
+ * which the API calls after checking batch.correct; the caller writes the audit event.
+ */
+export async function correctBatch(
+  tx: Tx,
+  batchId: string,
+  next: { batchNumber: string; expiryDate: string },
+): Promise<Change<{ batchNumber: string; expiryDate: string }> | null> {
+  const [row] = await tx<{ old_batch_number: string; old_expiry_date: string }[]>`
+    select old_batch_number, old_expiry_date::text as old_expiry_date
+    from app.correct_batch(${batchId}, ${next.batchNumber}, ${next.expiryDate})`;
+  if (!row) return null;
+  return {
+    before: { batchNumber: row.old_batch_number, expiryDate: row.old_expiry_date },
+    after: { batchNumber: next.batchNumber.trim(), expiryDate: next.expiryDate },
+  };
+}

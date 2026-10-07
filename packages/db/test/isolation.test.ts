@@ -32,7 +32,14 @@ describe.skipIf(!sql)("tenant isolation", () => {
       await tx`insert into app.staff_branch_access (tenant_id, staff_member_id, branch_id)
                values (${t.tenantId}, ${cashier!.id}, ${t.branchId})`;
       await tx`insert into app.facility_profiles (tenant_id, legal_name, nib) values (${t.tenantId}, 'PT Uji', '9120000000001')`;
+      await tx`insert into app.workstations (tenant_id, branch_id, name) values (${t.tenantId}, ${t.branchId}, 'Kasir 1')`;
       return { product, batchId };
+    }).then(async (result) => {
+      // Reconciliation issues are written by the nightly job, not request code.
+      await db`insert into app.reconciliation_issues
+        (tenant_id, location_id, product_id, ledger_on_hand, ledger_reserved, balance_on_hand, balance_reserved)
+        values (${t.tenantId}, ${t.locationId}, ${result.product.productId}, 1, 0, 0, 0)`;
+      return result;
     });
   }
 
@@ -95,6 +102,7 @@ describe.skipIf(!sql)("tenant isolation", () => {
       product_units: (tx) => tx`insert into app.product_units (tenant_id, product_id, name, multiplier_to_base)
                                 values (${b.tenantId}, ${bProduct.productId}, 'pack', 5)`,
       audit_events: (tx) => tx`insert into app.audit_events (tenant_id, action, entity_type) values (${b.tenantId}, 'x.y', 'x')`,
+      workstations: (tx) => tx`insert into app.workstations (tenant_id, branch_id, name) values (${b.tenantId}, ${b.branchId}, 'X')`,
       facility_profiles: (tx) => tx`update app.facility_profiles set nib = 'hacked' where tenant_id = ${b.tenantId} returning 1`.then((r) => {
         if (r.count > 0) throw new Error("updated another tenant's facility");
         return tx`insert into app.facility_profiles (tenant_id, nib) values (${b.tenantId}, 'x')`;
