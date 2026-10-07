@@ -39,7 +39,9 @@ Built so far:
   `GET /me`, `POST /tenants`; under `/tenants/:tenantId`: staff list, invitations (existing
   accounts are linked, new ones get a Supabase invite via `src/auth-admin.ts` with the
   server-only `SUPABASE_SECRET_KEY`), role, active and branch changes, facility profile,
-  audit log, branches/locations/workstations, batch correction, reconciliation issues, products (create with units + barcodes, list/search, get, edit,
+  audit log, branches/locations/workstations, batch correction, reconciliation issues,
+  CSV import (products, opening stock; all-or-nothing with per-line problems, `?dryRun=true`)
+  and export (products in the import format, stock) via `src/csv.ts`, products (create with units + barcodes, list/search, get, edit,
   classification, unit price, barcodes), `GET /products/:id/stock` (stock card),
   `POST /stock/opening-balances` (needs an `Idempotency-Key` UUID header) and
   `PUT /batches/:id/status`. Non-members get 404. A product created by someone without
