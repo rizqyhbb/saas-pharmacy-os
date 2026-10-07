@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { membershipsForUser, recordAudit, registerTenant, withContext } from "../src";
+import { classifyDbError, membershipsForUser, recordAudit, registerTenant, setStaffActive, withContext } from "../src";
 import { asTenant, connect, createTenant, createUser, rejection } from "./support";
 
 /** Registration (US-FND-1), memberships and the audit trail (G0-5 groundwork). */
@@ -40,6 +40,12 @@ describe.skipIf(!sql)("registration and memberships", () => {
       ["Apotek Dua", "PHARMACIST"],
       ["Apotek Satu", "OWNER"],
     ]);
+  });
+
+  test("the last active owner cannot be deactivated", async () => {
+    const t = await createTenant(db);
+    const error = await rejection(asTenant(db, t, (tx) => setStaffActive(tx, t.staffId, false)));
+    expect(classifyDbError(error)).toMatchObject({ kind: "RULE", rule: "LAST_OWNER" });
   });
 
   test("audit events record before and after", async () => {

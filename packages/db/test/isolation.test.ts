@@ -31,6 +31,7 @@ describe.skipIf(!sql)("tenant isolation", () => {
         values (${t.tenantId}, ${cashierUser}, 'Kasir', 'CASHIER') returning id`;
       await tx`insert into app.staff_branch_access (tenant_id, staff_member_id, branch_id)
                values (${t.tenantId}, ${cashier!.id}, ${t.branchId})`;
+      await tx`insert into app.facility_profiles (tenant_id, legal_name, nib) values (${t.tenantId}, 'PT Uji', '9120000000001')`;
       return { product, batchId };
     });
   }
@@ -94,6 +95,10 @@ describe.skipIf(!sql)("tenant isolation", () => {
       product_units: (tx) => tx`insert into app.product_units (tenant_id, product_id, name, multiplier_to_base)
                                 values (${b.tenantId}, ${bProduct.productId}, 'pack', 5)`,
       audit_events: (tx) => tx`insert into app.audit_events (tenant_id, action, entity_type) values (${b.tenantId}, 'x.y', 'x')`,
+      facility_profiles: (tx) => tx`update app.facility_profiles set nib = 'hacked' where tenant_id = ${b.tenantId} returning 1`.then((r) => {
+        if (r.count > 0) throw new Error("updated another tenant's facility");
+        return tx`insert into app.facility_profiles (tenant_id, nib) values (${b.tenantId}, 'x')`;
+      }),
       inventory_ledger: (tx) => tx`insert into app.inventory_ledger
         (tenant_id, branch_id, location_id, product_id, batch_id, qty_delta_base, event_type, reference_type, reference_id, idempotency_key)
         values (${b.tenantId}, ${b.branchId}, ${b.locationId}, ${bProduct.productId}, ${bBatchId}, -1, 'SALE', 't', 't', ${crypto.randomUUID()})`,

@@ -45,3 +45,16 @@ export {
   type SettableBatchStatus,
   type StockCard,
 } from "./inventory";
+export {
+  addStaffMember,
+  findAuthUserByEmail,
+  getFacility,
+  isMember,
+  listStaffMembers,
+  setStaffActive,
+  setStaffBranches,
+  updateFacility,
+  type BranchScope,
+  type FacilityProfile,
+  type StaffView,
+} from "./staff";
