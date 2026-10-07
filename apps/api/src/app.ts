@@ -1,5 +1,6 @@
 import { Elysia, t } from "elysia";
 import { classifyDbError, membershipsForUser, registerTenant, type Sql } from "@apotek/db";
+import type { AuthAdmin } from "./auth-admin";
 import type { VerifyToken } from "./auth";
 import {
   addBarcodeRoute,
@@ -17,13 +18,30 @@ import {
   setPriceRoute,
   updateProductRoute,
 } from "./routes/catalogue";
-import { auditQuery, changeRole, listAuditEvents, listLocations, listStaff, roleChangeBody } from "./routes/staff";
+import {
+  activeBody,
+  auditQuery,
+  branchesBody,
+  changeRole,
+  facilityBody,
+  invitationBody,
+  inviteStaff,
+  listAuditEvents,
+  listLocations,
+  listStaff,
+  readFacility,
+  roleChangeBody,
+  setActive,
+  setBranches,
+  writeFacility,
+} from "./routes/staff";
 import { batchStatusBody, batchStatusRoute, openingBalanceBody, openingBalanceRoute, stockCardRoute } from "./routes/stock";
 import type { Reply, TenantScope } from "./scope";
 
 export interface AppDeps {
   db: Sql;
   verifyToken: VerifyToken;
+  authAdmin: AuthAdmin;
 }
 
 const bearerToken = (header: string | undefined) => header?.match(/^Bearer\s+(\S+)$/i)?.[1] ?? null;
@@ -44,7 +62,7 @@ async function send(set: { status?: number | string }, pending: Promise<Reply>) 
  *
  * Built separately from `listen()` so tests drive it through `app.handle(request)`.
  */
-export const createApp = ({ db, verifyToken }: AppDeps) =>
+export const createApp = ({ db, verifyToken, authAdmin }: AppDeps) =>
   new Elysia()
     .onError(({ error, code, set }) => {
       if (code === "VALIDATION" || code === "NOT_FOUND" || code === "PARSE") return;
@@ -101,6 +119,15 @@ export const createApp = ({ db, verifyToken }: AppDeps) =>
         .patch("/staff/:staffId/role", ({ scope, set, params, body }) => send(set, changeRole(scope, params.staffId, body)), {
           body: roleChangeBody,
         })
+        .post("/staff/invitations", ({ scope, set, body }) => send(set, inviteStaff(scope, authAdmin, body)), { body: invitationBody })
+        .patch("/staff/:staffId/active", ({ scope, set, params, body }) => send(set, setActive(scope, params.staffId, body)), {
+          body: activeBody,
+        })
+        .put("/staff/:staffId/branches", ({ scope, set, params, body }) => send(set, setBranches(scope, params.staffId, body)), {
+          body: branchesBody,
+        })
+        .get("/facility", ({ scope, set }) => send(set, readFacility(scope)))
+        .put("/facility", ({ scope, set, body }) => send(set, writeFacility(scope, body)), { body: facilityBody })
         .get("/audit-events", ({ scope, set, query }) => send(set, listAuditEvents(scope, query)), { query: auditQuery })
         .get("/locations", ({ scope, set }) => send(set, listLocations(scope)))
         // catalogue

@@ -1,5 +1,16 @@
 import { t, type Static } from "elysia";
 import { isRole } from "@apotek/domain";
+import {
+  addStaffMember,
+  findAuthUserByEmail,
+  getFacility,
+  isMember,
+  listStaffMembers,
+  setStaffActive,
+  setStaffBranches,
+  updateFacility,
+} from "@apotek/db";
+import type { AuthAdmin } from "../auth-admin";
 import { audit, authorize, inTenant, reply, visibleBranches, type Reply, type TenantScope } from "../scope";
 
 export const roleChangeBody = t.Object({ role: t.String(), reason: t.Optional(t.String({ maxLength: 500 })) });
@@ -8,12 +19,143 @@ export const auditQuery = t.Object({ limit: t.Optional(t.Numeric({ minimum: 1, m
 export async function listStaff(scope: TenantScope): Promise<Reply> {
   const denied = await authorize(scope, "staff.read");
   if (denied) return denied;
-  const staff = await inTenant(scope, (tx) => tx<
-    { id: string; display_name: string; role: string; all_branches: boolean; active: boolean }[]
-  >`select id, display_name, role::text as role, all_branches, active from app.staff_members order by display_name`);
-  return reply(200, {
-    staff: staff.map((s) => ({ staffId: s.id, displayName: s.display_name, role: s.role, allBranches: s.all_branches, active: s.active })),
+  const staff = await inTenant(scope, (tx) => listStaffMembers(tx));
+  return reply(200, { staff: staff.map(({ userId: _userId, ...member }) => member) });
+}
+
+const branchScope = {
+  allBranches: t.Optional(t.Boolean()),
+  branchIds: t.Optional(t.Array(t.String({ format: "uuid" }), { maxItems: 50 })),
+};
+export const invitationBody = t.Object({
+  email: t.String({ format: "email", maxLength: 254 }),
+  displayName: t.String({ minLength: 1, maxLength: 120 }),
+  role: t.String(),
+  ...branchScope,
+});
+export const activeBody = t.Object({ active: t.Boolean(), reason: t.String({ minLength: 3, maxLength: 500 }) });
+export const branchesBody = t.Object({ allBranches: t.Boolean(), branchIds: t.Array(t.String({ format: "uuid" }), { maxItems: 50 }) });
+
+/**
+ * US-FND-3: add a person to this pharmacy. Someone who already has an account (a
+ * pharmacist working at two apotek) is linked directly; anyone else gets a Supabase
+ * invitation email. Their role and branches come from here, never from the token.
+ */
+export async function inviteStaff(scope: TenantScope, admin: AuthAdmin, body: Static<typeof invitationBody>): Promise<Reply> {
+  const denied = await authorize(scope, "staff.manage");
+  if (denied) return denied;
+  const role = body.role;
+  if (!isRole(role)) return reply(422, { error: "UNKNOWN_ROLE" });
+  const allBranches = body.allBranches ?? false;
+  const branchIds = body.branchIds ?? [];
+  if (!allBranches && branchIds.length === 0) return reply(422, { error: "NO_BRANCH" });
+
+  const email = body.email.trim().toLowerCase();
+  const existing = await inTenant(scope, async (tx) => {
+    const userId = await findAuthUserByEmail(tx, email);
+    return { userId, member: userId ? await isMember(tx, userId) : false };
   });
+  if (existing.member) return reply(409, { error: "ALREADY_MEMBER" });
+  const userId = existing.userId ?? (await admin.inviteUser(email)).userId;
+
+  const staffId = await inTenant(scope, async (tx) => {
+    const id = await addStaffMember(tx, scope.member.tenantId, {
+      userId,
+      displayName: body.displayName,
+      role,
+      allBranches,
+      branchIds,
+    });
+    await audit(scope, tx, {
+      action: "staff.invite",
+      entityType: "staff_member",
+      entityId: id,
+      after: { email, displayName: body.displayName, role, allBranches, branchIds, newAccount: existing.userId === null },
+    });
+    return id;
+  });
+  return reply(201, { staffId, newAccount: existing.userId === null });
+}
+
+/** Deactivating locks someone out on their next request; nobody deactivates themselves. */
+export async function setActive(scope: TenantScope, staffId: string, body: Static<typeof activeBody>): Promise<Reply> {
+  const denied = await authorize(scope, "staff.manage");
+  if (denied) return denied;
+  if (staffId === scope.member.staffId && !body.active) return reply(409, { error: "CANNOT_DEACTIVATE_SELF" });
+  const change = await inTenant(scope, async (tx) => {
+    const changed = await setStaffActive(tx, staffId, body.active);
+    if (changed) {
+      await audit(scope, tx, {
+        action: body.active ? "staff.reactivate" : "staff.deactivate",
+        entityType: "staff_member",
+        entityId: staffId,
+        before: changed.before,
+        after: changed.after,
+        reason: body.reason,
+      });
+    }
+    return changed;
+  });
+  return change ? reply(200, { staffId, active: body.active }) : reply(404, { error: "STAFF_NOT_FOUND" });
+}
+
+export async function setBranches(scope: TenantScope, staffId: string, body: Static<typeof branchesBody>): Promise<Reply> {
+  const denied = await authorize(scope, "staff.manage");
+  if (denied) return denied;
+  const change = await inTenant(scope, async (tx) => {
+    const changed = await setStaffBranches(tx, scope.member.tenantId, staffId, body);
+    if (changed) {
+      await audit(scope, tx, {
+        action: "staff.branches.change",
+        entityType: "staff_member",
+        entityId: staffId,
+        before: changed.before,
+        after: changed.after,
+      });
+    }
+    return changed;
+  });
+  return change ? reply(200, { staffId, ...change.after }) : reply(404, { error: "STAFF_NOT_FOUND" });
+}
+
+const optional = (max: number) => t.Optional(t.Union([t.String({ maxLength: max }), t.Null()]));
+const optionalDate = t.Optional(t.Union([t.String({ format: "date" }), t.Null()]));
+export const facilityBody = t.Object({
+  legalName: optional(160),
+  nib: optional(32),
+  pharmacyPermitNumber: optional(64),
+  pharmacyPermitValidUntil: optionalDate,
+  apjStaffId: t.Optional(t.Union([t.String({ format: "uuid" }), t.Null()])),
+  apjName: optional(120),
+  apjRegistrationNumber: optional(64),
+  apjPracticePermitNumber: optional(64),
+  apjPracticePermitValidUntil: optionalDate,
+  address: optional(500),
+  phone: optional(32),
+  operatingHours: optional(500),
+});
+
+/** Any member may read the facility profile: it prints on receipts and labels. */
+export async function readFacility(scope: TenantScope): Promise<Reply> {
+  return reply(200, await inTenant(scope, (tx) => getFacility(tx)));
+}
+
+/** US-FND-2: facility identity and the responsible pharmacist, audited. */
+export async function writeFacility(scope: TenantScope, body: Static<typeof facilityBody>): Promise<Reply> {
+  const denied = await authorize(scope, "tenant.settings.update");
+  if (denied) return denied;
+  const facility = await inTenant(scope, async (tx) => {
+    const change = await updateFacility(tx, scope.member.tenantId, body, scope.member.staffId);
+    await audit(scope, tx, {
+      action: "tenant.facility.update",
+      entityType: "tenant",
+      entityId: scope.member.tenantId,
+      before: change.before,
+      after: change.after,
+    });
+    return change.after;
+  });
+  return reply(200, facility);
 }
 
 export async function changeRole(scope: TenantScope, staffId: string, body: Static<typeof roleChangeBody>): Promise<Reply> {

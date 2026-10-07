@@ -4,6 +4,7 @@ import { withContext, type Sql } from "@apotek/db";
 import { createUser } from "@apotek/db/testing";
 import { createApp } from "../src/app";
 import { supabaseVerifier } from "../src/auth";
+import type { AuthAdmin } from "../src/auth-admin";
 
 export const SUPABASE_URL = "http://127.0.0.1:55321";
 const ISSUER = `${SUPABASE_URL}/auth/v1`;
@@ -24,8 +25,22 @@ export function token(userId: string, overrides: { issuer?: string; audience?: s
     .sign(privateKey);
 }
 
-export function testApp(db: Sql) {
-  return createApp({ db, verifyToken: supabaseVerifier({ supabaseUrl: SUPABASE_URL, keys: testKeys }) });
+/** Stands in for Supabase's invite endpoint: creates the account and remembers the email. */
+export function fakeAuthAdmin(db: Sql): AuthAdmin & { invited: string[] } {
+  const invited: string[] = [];
+  return {
+    invited,
+    async inviteUser(email) {
+      const userId = crypto.randomUUID();
+      await db`insert into auth.users (id, email, aud, role) values (${userId}, ${email}, 'authenticated', 'authenticated')`;
+      invited.push(email);
+      return { userId };
+    },
+  };
+}
+
+export function testApp(db: Sql, authAdmin: AuthAdmin = fakeAuthAdmin(db)) {
+  return createApp({ db, verifyToken: supabaseVerifier({ supabaseUrl: SUPABASE_URL, keys: testKeys }), authAdmin });
 }
 
 export async function call(
