@@ -19,11 +19,12 @@ Status: proposal v0.1 · 6 Oct 2026. Items needing the owner's decision are in `
 |---|---|---|
 | Runtime | **Bun** | Already running in prod for pos-local |
 | API | **Elysia** + TypeBox | Typed validation, same patterns |
-| ORM / migrations | **Drizzle** | Same |
+| Migrations | **Supabase CLI SQL migrations** (`supabase/migrations`) | RLS policies, triggers and SECURITY DEFINER functions are first-class in SQL. Decided 6 Oct 2026 |
+| Queries | **postgres.js** in `packages/db`; Drizzle when the first CRUD module lands | Typed query builder once there is enough query surface to justify it |
 | Database | **Postgres** (Supabase) | RLS for tenant isolation; Auth/Storage available |
 | Frontend | **React + Vite + TypeScript + Tailwind** | Same; PWA |
 | Local store | **Dexie (IndexedDB)** | Same offline model |
-| Auth | Supabase Auth *or* app-managed JWT (decide in M0) | Staff accounts, roles from DB not token claims |
+| Auth | **Supabase Auth** (decided 6 Oct 2026, A1) | Identity only. The API verifies access tokens against the project JWKS; roles come from `app.staff_members`, never token claims |
 | Hosting | Fly.io (API) + Supabase (DB) + Vercel (web) | Same shape; see D8 for data-residency review |
 | Printing | ESC/POS over Web Serial / Web USB / browser print fallback | Thermal receipts and etiket |
 | Package manager | pnpm | Same |
@@ -39,8 +40,11 @@ pos-pharmacy/
 │   ├── pos/                  counter + back-office PWA (impeccable)
 │   └── web/                  landing + demo (taste)
 ├── packages/
-│   ├── domain/               pure TS: entities, state machines, unit math, FEFO
+│   ├── domain/               pure TS: entities, state machines, unit math, FEFO, permissions
+│   ├── db/                   request-scoped DB access (RLS context) + integration tests
+│   ├── ui/                   design system (DESIGN.md)
 │   └── contracts/            shared request/response types
+├── supabase/                 config, SQL migrations (schema, RLS, triggers)
 ├── docs/  research/
 ```
 
@@ -63,8 +67,10 @@ Rules: modules talk through service interfaces; only `inventory/` writes the led
 
 ## 5. Multi-tenancy
 
-- **Shared schema, `tenant_id` on every row** (decision D7).
-- **Postgres Row-Level Security** with `tenant_id = current_setting('app.tenant_id')` set per request; defence in depth on top of query scoping.
+- **Shared schema, `tenant_id` on every row** (decision D7). Tables live in schema `app`, which is not exposed through the Supabase Data API; the Elysia API is the only way in.
+- **Postgres Row-Level Security on every table.** The API connects as `postgres` but runs each request in one transaction that sets `app.user_id`, `app.tenant_id`, `app.staff_id` and does `SET LOCAL ROLE apotek_api`, a role without `BYPASSRLS` (`packages/db` `withContext`). Policies compare `tenant_id` with `app.current_tenant_id()`, which only returns the tenant when the user is an *active* staff member of it under that staff id, so a forged or stale context (an API bug, a removed employee) sees nothing.
+- **Composite foreign keys** `(tenant_id, parent_id)` everywhere, so a row can never point into another tenant.
+- Cross-tenant operations are a short list of `SECURITY DEFINER` functions (tenant registration, the ledger balance trigger).
 - A **tenant-isolation test suite** runs in CI: for every table and endpoint, a user from tenant A cannot read or write tenant B.
 - Branch scoping is a second layer: users carry allowed branch IDs; branch-level roles filter queries.
 - Per-tenant config (units defaults, tax, expiry bands, discount limits) lives in a `tenant_settings` table.
@@ -84,8 +90,8 @@ inventory_ledger(
 )
 ```
 
-- Insert-only. Corrections are **new compensating events**.
-- `inventory_balance(tenant, branch, location, product, batch, on_hand, reserved)` is maintained transactionally in the same commit as the ledger insert and has a **rebuild-from-ledger** job plus a nightly **reconciliation check**; a mismatch raises a Critical Action Center item.
+- Insert-only. Corrections are **new compensating events**. Enforced in Postgres: append-only triggers, no `UPDATE`/`DELETE` grant, sign rules as a check constraint.
+- `inventory_balance(tenant, branch, location, product, batch, on_hand, reserved)` is maintained transactionally in the same commit as the ledger insert (an `AFTER INSERT` trigger, `app.apply_ledger_event`, the only writer; it also enforces L3/L4 and T3) and has a **rebuild-from-ledger** job plus a nightly **reconciliation check**; a mismatch raises a Critical Action Center item.
 - Allocation (FEFO) runs inside the sale/dispense transaction with row locks on candidate batch balances to prevent double-allocation.
 - Period close: after close, back-dated events are rejected; fixes use privileged adjustments dated in the open period.
 
@@ -132,7 +138,7 @@ POS UI → local domain layer (Dexie) → outbox queue → sync worker → API
 ## 10. Security and privacy
 
 - Passwords hashed (argon2/bcrypt); short-lived access tokens + refresh; per-device session list.
-- Roles resolved server-side from the DB per request (not trusted from the token).
+- Roles resolved server-side from the DB per request (not trusted from the token). A deactivated staff member is locked out on their next request even though their token is still valid.
 - Permission matrix is data (`role_permissions`) with a default seed and per-tenant overrides limited to non-critical actions.
 - **Patient domain:** separate schema/tables; every read is access-logged; excluded from logs, analytics exports, error reports, and demo data.
 - Prescription images/documents in private object storage with signed, short-lived URLs.
@@ -182,7 +188,7 @@ PRD-8 requires <150 ms p95 on 20k SKUs offline. Approach: build a normalised sea
 
 | # | Question | Default |
 |---|---|---|
-| A1 | Supabase Auth vs app-managed auth | App-managed JWT with DB roles, for control over staff accounts; revisit |
+| A1 | Supabase Auth vs app-managed auth | **Decided 6 Oct 2026: Supabase Auth.** Identity only; roles and tenant membership from the DB. Shared-device PIN switching at the counter is still open (M1) |
 | A2 | Decimal quantities (ml, g, partial tablet) | Store base quantity as `numeric(18,4)` |
 | A3 | Event sourcing vs ledger + projection | Ledger + transactional projection (simpler, enough) |
 | A4 | Staging environment | Yes |

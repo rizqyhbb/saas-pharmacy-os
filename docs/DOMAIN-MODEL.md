@@ -225,7 +225,7 @@ Packaging component (paper/sachet/bottle) and charges: tuslah, embalase
 `who, what, when, branch, entity_type, entity_id, before, after, reason, reference, ip/device` — append-only. Mandatory for: stock adjustment, price change, void/refund, user/permission change, batch/expiry correction, supplier change, prescription change/cancel, controlled dispense/adjust, destruction, return-to-stock decision, manual payment change.
 
 ### Permissions
-Resource × action matrix per role, stored as data. Critical examples: `prescription.approve` (pharmacist/APJ only), `controlled.approve` (pharmacist/APJ), `stock.adjust` (manager/warehouse with approval), `sale.discount` (cashier up to limit), `batch.correct` (privileged), `audit.read` (owner/auditor).
+Resource × action matrix per role, stored as data (default matrix: `packages/domain/src/permissions.ts`, checked on the API for all nine roles). Critical examples: `prescription.approve` (pharmacist/APJ only), `controlled.approve` (pharmacist/APJ), `stock.adjust` (manager/warehouse with approval), `sale.discount` (cashier up to limit), `batch.correct` (privileged), `audit.read` (owner/auditor).
 
 ### Sync job / integration event
 `SyncJob(id, device, payload, idempotency_key, status pending|synced|conflict|failed, attempts, last_error)`; `IntegrationEvent(provider, direction, payload_ref, status, retries)`.

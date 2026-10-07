@@ -6,9 +6,18 @@ Indonesian apotek.
 > A pharmacy operating system that makes every medicine traceable from purchase to patient,
 > while keeping everyday checkout fast enough for a busy retail counter.
 
-**Status: M0 Foundation in progress.** The pure domain core (`packages/domain`) and an API
-skeleton (`apps/api`), the shared design system (`packages/ui`, see `DESIGN.md`) and the landing page with an interactive demo (`apps/web`) exist; see `CLAUDE.md` for what is built. `pnpm install && pnpm check`
-runs typecheck and tests.
+**Status: M0 Foundation in progress.** Built: the pure domain core (`packages/domain`), the
+database (Supabase, `supabase/migrations`: tenancy, roles, audit, catalogue, batches, ledger,
+all behind row-level security) with its access layer and integration tests (`packages/db`),
+an API that verifies Supabase Auth tokens and enforces the role matrix (`apps/api`), the
+design system (`packages/ui`, see `DESIGN.md`) and the landing page with an interactive demo
+(`apps/web`). See `CLAUDE.md` for detail.
+
+```bash
+pnpm install
+pnpm db:keys && pnpm db:start   # local Supabase (Docker)
+pnpm check                      # typecheck + every test suite
+```
 
 Working product name: **Apotek OS** (placeholder — see `docs/PRD.md`).
 

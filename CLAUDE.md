@@ -17,8 +17,24 @@ Built so far:
   purchase order, goods receipt and shift. Property tests cover T1, T2, T5, T6, T10.
   `test/purity.test.ts` fails the build if `src/` imports anything non-relative or reads
   the clock/randomness.
-- `apps/api` — Elysia app with `GET /health` only. No database, auth or tenancy yet
-  (waiting on A1 auth decision).
+- `supabase/` — local Supabase (ports 5532x so it runs beside pos-local's 5432x), Auth with
+  ES256 signing keys, SQL migrations as the schema source of truth:
+  tenancy/identity/audit, catalogue/batches/ledger/balances. Everything is in schema `app`
+  (not exposed to the Data API), RLS on every table, composite `(tenant_id, id)` foreign
+  keys, append-only ledger and audit, balances written only by the ledger trigger, and
+  U1/B1/B2/B3/T3/L1-L4 enforced in Postgres.
+- `packages/db` — `withContext()` runs each request in one transaction as role
+  `apotek_api` (no BYPASSRLS) with `app.user_id/tenant_id/staff_id` set;
+  `app.current_tenant_id()` only resolves for an active staff member, so a forged context
+  sees nothing. Integration suite: tenant isolation over every table (G0-1), ledger
+  property test against the domain reference model (G0-2), catalogue/batch rules,
+  registration and audit. Skips locally without a DB, fails in CI.
+- `apps/api` — Elysia. Verifies Supabase access tokens via JWKS (`src/auth.ts`), resolves
+  membership and role from the DB per request. Routes: `GET /health`, `GET /me`,
+  `POST /tenants` (register: tenant + branch + main location + OWNER), and under
+  `/tenants/:tenantId`: `GET /staff`, `PATCH /staff/:staffId/role`, `GET /audit-events`.
+  Non-members get 404; missing permission gets 403 and a `permission.denied` audit event.
+  Permission matrix: `packages/domain/src/permissions.ts`, tested for all nine roles (G0-4).
 - `packages/ui` (`@apotek/ui`) — the shared design system, documented in `DESIGN.md`:
   `tokens.css` (colour tokens as `light-dark()` pairs, radius, shadows, marketing type
   scale, as a Tailwind v4 theme; dark is opt-in per app via `data-theme` on `<html>`) and primitives (Button, Chip, Panel, Segmented, Switch, Tabs,
@@ -35,8 +51,10 @@ Built so far:
   for JS. Photos are Unsplash stand-ins (`src/assets/photos/CREDITS.md`).
   Open TODO: `PILOT_CONTACT_HREF` in `copy.ts` is a placeholder.
 
-Not started: `packages/contracts`, `apps/pos` (builds on `DESIGN.md` + `@apotek/ui`, via `impeccable`),
-Drizzle schema, RLS, prescription state machine (v1.1, needs APJ review).
+Not started: `packages/contracts`, catalogue/stock API routes, staff invitation (Supabase
+admin invite), counter PIN switching, `apps/pos` (builds on `DESIGN.md` + `@apotek/ui`, via
+`impeccable`), prescription state machine (v1.1, needs APJ review). No hosted Supabase
+project yet (needs owner approval and the D8 hosting/region decision).
 
 ---
 
@@ -163,12 +181,19 @@ Subject ≤72 chars, imperative, no trailing period. Body when the *why* isn't o
 
 ```bash
 pnpm install
-pnpm check                     # typecheck + test, every workspace
+pnpm db:keys                   # once: local JWT signing key (git-ignored)
+pnpm db:start                  # local Supabase: API :55321, DB :55322, Studio :55323
+pnpm db:reset                  # re-apply supabase/migrations from scratch
+pnpm check                     # typecheck + test, every workspace (DB tests need db:start)
 pnpm --filter @apotek/domain test
-pnpm --filter @apotek/api dev  # :3101 (pos-local's backend owns :3001)
+pnpm --filter @apotek/api dev  # :3101, needs apps/api/.env (see .env.example)
 pnpm --filter @apotek/web dev  # :3102 landing + demo
 pnpm --filter @apotek/ui test  # design tokens: dark parity + WCAG AA
 ```
+
+New schema change: `supabase migration new <name>`, write SQL, `pnpm db:reset`, run
+`supabase db advisors --local`, keep RLS + a policy on every `app` table (the schema guard
+test fails otherwise). Request code only touches the DB through `withContext`.
 
 Domain conventions: expected business outcomes (insufficient stock, illegal transition,
 inexact conversion) return `Result`; malformed input throws. "Today" is always passed in
