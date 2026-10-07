@@ -6,6 +6,7 @@ export * from "./batch";
 export * from "./dates";
 export * from "./fefo";
 export * from "./ledger";
+export * from "./permissions";
 export * from "./quantity";
 export * from "./result";
 export * from "./state-machine";
