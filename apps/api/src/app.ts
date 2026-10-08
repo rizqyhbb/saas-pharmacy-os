@@ -62,6 +62,25 @@ import {
 } from "./routes/organisation";
 import type { Reply, TenantScope } from "./scope";
 import {
+  cashMovementBody,
+  cashMovementRoute,
+  closeShiftBody,
+  closeShiftRoute,
+  currentShiftRoute,
+  openShiftBody,
+  openShiftRoute,
+  receiptRoute,
+  refundBody,
+  refundRoute,
+  reviewBody,
+  reviewShiftRoute,
+  saleBody,
+  saleRoute,
+  shiftReportRoute,
+  voidBody,
+  voidRoute,
+} from "./routes/counter";
+import {
   exportProductsRoute,
   exportStockRoute,
   importOpeningStockRoute,
@@ -211,6 +230,25 @@ export const createApp = ({ db, verifyToken, authAdmin }: AppDeps) =>
           ({ scope, set, params, body }) => send(set, resolveIssueRoute(scope, params.issueId, body)),
           { body: resolveBody },
         )
+        // counter (POS, SHF)
+        .post("/shifts", ({ scope, set, body }) => send(set, openShiftRoute(scope, body)), { body: openShiftBody })
+        .get("/workstations/:workstationId/shift", ({ scope, set, params }) => send(set, currentShiftRoute(scope, params.workstationId)))
+        .post("/shifts/:shiftId/cash-movements", ({ scope, set, params, body }) => send(set, cashMovementRoute(scope, params.shiftId, body)), {
+          body: cashMovementBody,
+        })
+        .post("/shifts/:shiftId/close", ({ scope, set, params, body }) => send(set, closeShiftRoute(scope, params.shiftId, body)), {
+          body: closeShiftBody,
+        })
+        .post("/shifts/:shiftId/review", ({ scope, set, params, body }) => send(set, reviewShiftRoute(scope, params.shiftId, body)), {
+          body: reviewBody,
+        })
+        .get("/shifts/:shiftId/report", ({ scope, set, params }) => send(set, shiftReportRoute(scope, params.shiftId)))
+        .post("/sales", ({ scope, set, body }) => send(set, saleRoute(scope, body)), { body: saleBody })
+        .get("/sales/:saleId/receipt", ({ scope, set, params }) => send(set, receiptRoute(scope, params.saleId)))
+        .post("/sales/:saleId/void", ({ scope, set, params, body }) => send(set, voidRoute(scope, params.saleId, body)), { body: voidBody })
+        .post("/sales/:saleId/refunds", ({ scope, set, params, body }) => send(set, refundRoute(scope, params.saleId, body)), {
+          body: refundBody,
+        })
         // CSV import and export (FND-7)
         .post("/imports/products", ({ scope, set, body, query }) => send(set, importProductsRoute(scope, body, query.dryRun === "true")), {
           parse: "text",
