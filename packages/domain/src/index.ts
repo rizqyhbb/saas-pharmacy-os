@@ -9,5 +9,6 @@ export * from "./ledger";
 export * from "./permissions";
 export * from "./quantity";
 export * from "./result";
+export * from "./sale";
 export * from "./state-machine";
 export * from "./units";

@@ -115,3 +115,46 @@ export function validateManualAllocation(
 
   return errors.length > 0 ? err(errors) : ok([...allocations]);
 }
+
+export interface SyncAllocation extends Allocation {
+  /** True for the part that drove the balance negative: an offline-conflict row (ARCHITECTURE.md §9). */
+  conflict: boolean;
+}
+
+export type SyncAllocationError = { kind: "NO_BATCH_AT_LOCATION" };
+
+/**
+ * Allocation for an offline sale arriving at the server (SYN-4). The goods already
+ * left the shelf and the customer already paid, so the sale is never refused:
+ * whatever sellable stock remains is taken by FEFO, and any shortfall is booked
+ * against one batch as a flagged conflict for a person to reconcile. That batch is
+ * the latest-expiring sellable one, else the batch the device itself recorded,
+ * else the latest-expiring batch of any status.
+ */
+export function allocateForSync(
+  requested: Qty,
+  candidates: readonly AllocationCandidate[],
+  today: CalendarDate,
+  deviceBatchId?: string,
+): Result<SyncAllocation[], SyncAllocationError> {
+  assertPositive(requested);
+  const full = allocateFefo(requested, candidates, today);
+  if (full.ok) return ok(full.value.map((a) => ({ ...a, conflict: false })));
+
+  const eligible = candidates
+    .filter((candidate) => isAllocatable(candidate, today))
+    .sort((a, b) => a.expiryDate.localeCompare(b.expiryDate) || a.batchId.localeCompare(b.batchId));
+  const taken: SyncAllocation[] = eligible.map((c) => ({ batchId: c.batchId, qty: c.available, conflict: false }));
+  const shortfall = requested - sumQty(taken.map((t) => t.qty));
+
+  const latest = (list: readonly AllocationCandidate[]) =>
+    [...list].sort((a, b) => b.expiryDate.localeCompare(a.expiryDate) || a.batchId.localeCompare(b.batchId))[0];
+  const sellable = candidates.filter((c) => saleBlockReason(c, today) === null);
+  const target =
+    latest(sellable)?.batchId ??
+    (deviceBatchId && candidates.some((c) => c.batchId === deviceBatchId) ? deviceBatchId : undefined) ??
+    latest(candidates)?.batchId;
+  if (!target) return err({ kind: "NO_BATCH_AT_LOCATION" });
+
+  return ok([...taken, { batchId: target, qty: shortfall, conflict: true }]);
+}

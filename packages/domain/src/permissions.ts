@@ -47,6 +47,7 @@ export const PERMISSIONS = [
   "sale.void",
   "sale.refund",
   "shift.manage",
+  "shift.review",
   // procurement and money
   "purchase_order.create",
   "purchase_order.approve",
@@ -96,6 +97,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission
     "sale.void",
     "sale.refund",
     "shift.manage",
+    "shift.review",
     "purchase_order.create",
     "purchase_order.approve",
     "payable.pay",
@@ -116,6 +118,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission
     "sale.void",
     "sale.refund",
     "shift.manage",
+    "shift.review",
     "purchase_order.create",
     "purchase_order.approve",
     "report.financial.read",

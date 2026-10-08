@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import fc from "fast-check";
 import {
+  allocateForSync,
   allocateFefo,
   BATCH_STATUSES,
   parseQty,
@@ -173,5 +174,59 @@ describe("validateManualAllocation", () => {
       ].sort(),
     );
     expect(result.error).toContainEqual({ kind: "BATCH_BLOCKED", batchId: "old", reason: "EXPIRED" });
+  });
+});
+
+describe("allocateForSync (offline sales, SYN-4)", () => {
+  const at = (batchId: string, expiryDate: string, available: bigint, status: "AVAILABLE" | "QUARANTINE" = "AVAILABLE") => ({
+    batchId,
+    expiryDate,
+    receivedAt: new Date("2026-01-01"),
+    status,
+    available,
+  });
+  const today = "2026-10-08";
+
+  test("enough stock: plain FEFO, no conflict", () => {
+    const r = allocateForSync(15n, [at("b2", "2027-06-01", 100n), at("b1", "2026-12-01", 10n)], today);
+    expect(r).toEqual({ ok: true, value: [{ batchId: "b1", qty: 10n, conflict: false }, { batchId: "b2", qty: 5n, conflict: false }] });
+  });
+
+  test("short: takes what is there, books the rest on the latest-expiring sellable batch as conflict", () => {
+    const r = allocateForSync(15n, [at("b1", "2026-12-01", 4n), at("b2", "2027-06-01", 6n), at("old", "2026-01-01", 50n)], today);
+    expect(r).toEqual({
+      ok: true,
+      value: [
+        { batchId: "b1", qty: 4n, conflict: false },
+        { batchId: "b2", qty: 6n, conflict: false },
+        { batchId: "b2", qty: 5n, conflict: true },
+      ],
+    });
+  });
+
+  test("nothing sellable: the device's own batch, else the latest batch of any status", () => {
+    const blocked = [at("q", "2027-01-01", 9n, "QUARANTINE"), at("old", "2026-01-01", 3n)];
+    expect(allocateForSync(2n, blocked, today, "old")).toEqual({ ok: true, value: [{ batchId: "old", qty: 2n, conflict: true }] });
+    expect(allocateForSync(2n, blocked, today)).toEqual({ ok: true, value: [{ batchId: "q", qty: 2n, conflict: true }] });
+    expect(allocateForSync(2n, [], today)).toEqual({ ok: false, error: { kind: "NO_BATCH_AT_LOCATION" } });
+  });
+
+  test("property: always books exactly the requested quantity, conflict only when short", () => {
+    const candidate = fc.record({
+      batchId: fc.constantFrom("a", "b", "c", "d"),
+      expiryDate: fc.constantFrom("2025-01-01", "2026-12-01", "2027-06-01"),
+      receivedAt: fc.constant(new Date("2026-01-01")),
+      status: fc.constantFrom("AVAILABLE" as const, "QUARANTINE" as const),
+      available: fc.bigInt({ min: 0n, max: 50n }),
+    });
+    fc.assert(
+      fc.property(fc.bigInt({ min: 1n, max: 120n }), fc.uniqueArray(candidate, { selector: (c) => c.batchId, minLength: 1 }), (requested, candidates) => {
+        const r = allocateForSync(requested, candidates, today);
+        if (!r.ok) throw new Error("candidates exist, must allocate");
+        expect(r.value.reduce((s, a) => s + a.qty, 0n)).toBe(requested);
+        const plain = allocateFefo(requested, candidates, today);
+        expect(r.value.some((a) => a.conflict)).toBe(!plain.ok);
+      }),
+    );
   });
 });
