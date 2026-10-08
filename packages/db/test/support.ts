@@ -128,3 +128,16 @@ export async function rejection(promise: Promise<unknown>): Promise<Error> {
   }
   throw new Error("expected the operation to fail, but it succeeded");
 }
+
+/** A counter workstation with an open shift, ready to sell. */
+export async function openCounter(sql: Sql, tenant: TestTenant, openingFloat = 200000) {
+  return asTenant(sql, tenant, async (tx) => {
+    const [ws] = await tx<{ id: string }[]>`
+      insert into app.workstations (tenant_id, branch_id, name) values (${tenant.tenantId}, ${tenant.branchId}, ${`Kasir ${crypto.randomUUID().slice(0, 4)}`})
+      returning id`;
+    const shiftId = crypto.randomUUID();
+    await tx`insert into app.shifts (id, tenant_id, branch_id, workstation_id, cashier_staff_id, opening_float)
+             values (${shiftId}, ${tenant.tenantId}, ${tenant.branchId}, ${ws!.id}, ${tenant.staffId}, ${openingFloat})`;
+    return { workstationId: ws!.id, shiftId };
+  });
+}

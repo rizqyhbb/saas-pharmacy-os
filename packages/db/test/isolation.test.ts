@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { withContext, type Tx } from "../src";
-import { asTenant, connect, createProduct, createTenant, createUser, openBatch, rejection, type TestTenant } from "./support";
+import { recordSale, refundSale, withContext, type Tx } from "../src";
+import { asTenant, connect, createProduct, createTenant, createUser, openBatch, openCounter, rejection, type TestTenant } from "./support";
 
 /**
  * Tenant isolation (G0-1, T11): tenant A can never read or write tenant B, on any
@@ -35,6 +35,22 @@ describe.skipIf(!sql)("tenant isolation", () => {
       await tx`insert into app.workstations (tenant_id, branch_id, name) values (${t.tenantId}, ${t.branchId}, 'Kasir 1')`;
       return { product, batchId };
     }).then(async (result) => {
+      // A shift with a sale, a refund and a cash movement, so every counter table has rows.
+      const counter = await openCounter(db, t);
+      await asTenant(db, t, async (tx) => {
+        const units = await tx<{ id: string; name: string }[]>`select id, name from app.product_units where product_id = ${result.product.productId}`;
+        const strip = units.find((u) => u.name === "strip")!.id;
+        const saleId = crypto.randomUUID();
+        await recordSale(tx, {
+          saleId, tenantId: t.tenantId, branchId: t.branchId, locationId: t.locationId, workstationId: counter.workstationId,
+          shiftId: counter.shiftId, cashierStaffId: t.staffId, cashierRole: "OWNER", receiptNo: `ISO-${saleId.slice(0, 8)}`,
+          occurredAt: new Date(), offline: false, lines: [{ productId: result.product.productId, unitId: strip, qty: "1", unitPrice: 4500 }],
+          payments: [{ method: "CASH", tendered: 4500 }],
+        });
+        await refundSale(tx, { tenantId: t.tenantId, saleId, shiftId: counter.shiftId, method: "CASH", amount: 1000, reason: "uji", staffId: t.staffId });
+        await tx`insert into app.cash_movements (id, tenant_id, shift_id, type, amount, reason, actor_staff_id)
+                 values (${crypto.randomUUID()}, ${t.tenantId}, ${counter.shiftId}, 'IN', 1000, 'uji', ${t.staffId})`;
+      });
       // Reconciliation issues are written by the nightly job, not request code.
       await db`insert into app.reconciliation_issues
         (tenant_id, location_id, product_id, ledger_on_hand, ledger_reserved, balance_on_hand, balance_reserved)
