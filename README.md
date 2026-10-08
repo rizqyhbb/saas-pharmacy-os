@@ -7,8 +7,9 @@ A multi-tenant **pharmacy operating system with POS** for Indonesian apotek.
 
 Working product name: **Apotek OS** (placeholder, see `docs/PRD.md`).
 
-**Status: M0 Foundation.** The backend foundation and the landing page exist; the counter
-app (`apps/pos`) is the next milestone. There is no hosted environment yet: everything below
+**Status: M1 Counter in progress.** The backend foundation (M0), the counter backend (shifts,
+sales, payments, receipts, void, refund) and the landing page exist; the counter app
+(`apps/pos`) is next. There is no hosted environment yet: everything below
 runs on your machine.
 
 | Built | Where |
@@ -16,7 +17,7 @@ runs on your machine.
 | Pure domain rules: quantities, units, FEFO, ledger, state machines, permission matrix | `packages/domain` |
 | Database: tenancy, staff roles, audit, catalogue, batches, append-only stock ledger, all behind row-level security | `supabase/migrations` |
 | Database access layer and integration tests (tenant isolation, ledger property tests) | `packages/db` |
-| API: Supabase Auth tokens, nine-role permissions, catalogue, opening stock, CSV import/export | `apps/api` |
+| API: Supabase Auth tokens, nine-role permissions, catalogue, opening stock, CSV import/export, shifts and sales | `apps/api` |
 | Design system "Klinik Tenang" | `packages/ui`, `DESIGN.md` |
 | Landing page with an interactive demo (Indonesian and English) | `apps/web` |
 
@@ -150,6 +151,54 @@ curl -s -X POST "$API/tenants/$TENANT/stock/opening-balances" "${auth[@]}" \
        \"productId\":\"$PRODUCT\",
        \"lines\":[{\"unitId\":\"$(curl -s $API/tenants/$TENANT/products/$PRODUCT "${auth[@]}" | jq -r '.units[] | select(.name=="box") | .id')\",
                    \"qty\":\"1\",\"batchNumber\":\"PCT-NEW-1\",\"expiryDate\":\"2028-01-31\"}]}" | jq
+```
+
+### Ring up a sale
+
+The demo has a counter workstation, **Kasir 1**. As the cashier: open a shift, sell 2 strips
+of paracetamol for cash, and read the receipt. FEFO skips the expired batch and takes 14
+tablets from the batch expiring soonest and 6 from the next one.
+
+```bash
+PUBLISHABLE_KEY=$(supabase status -o json 2>/dev/null | jq -r .PUBLISHABLE_KEY)
+signin() {
+  curl -s "http://127.0.0.1:55321/auth/v1/token?grant_type=password" \
+    -H "apikey: $PUBLISHABLE_KEY" -H "content-type: application/json" \
+    -d "{\"email\":\"$1\",\"password\":\"apotek123\"}" | jq -r .access_token
+}
+API=http://127.0.0.1:3101
+CASHIER=(-H "authorization: Bearer $(signin kasir@apotek.test)")
+TENANT=$(curl -s $API/me "${CASHIER[@]}" | jq -r '.memberships[0].tenantId')
+BRANCH=$(curl -s $API/tenants/$TENANT/branches "${CASHIER[@]}" | jq '.branches[0]')
+WORKSTATION=$(echo "$BRANCH" | jq -r '.workstations[] | select(.name=="Kasir 1") | .workstationId')
+LOCATION=$(echo "$BRANCH" | jq -r '.locations[0].locationId')
+
+# Open a shift with Rp 200.000 in the drawer (skip if Kasir 1 already has one)
+SHIFT=$(curl -s $API/tenants/$TENANT/workstations/$WORKSTATION/shift "${CASHIER[@]}" | jq -r '.shift.shiftId // empty')
+if [ -z "$SHIFT" ]; then
+  SHIFT=$(uuidgen)
+  curl -s -X POST $API/tenants/$TENANT/shifts "${CASHIER[@]}" -H "content-type: application/json" \
+    -d "{\"shiftId\":\"$SHIFT\",\"workstationId\":\"$WORKSTATION\",\"openingFloat\":200000}" | jq '{status, openingFloat}'
+fi
+
+# Sell 2 strips of paracetamol, paid Rp 10.000 cash
+PCT=$(curl -s "$API/tenants/$TENANT/products?q=PCT-500" "${CASHIER[@]}" | jq '.products[0]')
+SALE=$(uuidgen)
+curl -s -X POST $API/tenants/$TENANT/sales "${CASHIER[@]}" -H "content-type: application/json" -H "idempotency-key: $SALE" \
+  -d "{\"saleId\":\"$SALE\",\"receiptNo\":\"K1-$(date +%H%M%S)\",\"workstationId\":\"$WORKSTATION\",\"shiftId\":\"$SHIFT\",
+       \"locationId\":\"$LOCATION\",
+       \"lines\":[{\"productId\":$(echo "$PCT" | jq .id),\"unitId\":$(echo "$PCT" | jq '.units[] | select(.name=="strip") | .id'),\"qty\":\"2\",\"unitPrice\":4500}],
+       \"payments\":[{\"method\":\"CASH\",\"tendered\":10000}]}" | jq
+
+# The receipt: which batches the 20 tablets came from (the expired one is skipped)
+curl -s $API/tenants/$TENANT/sales/$SALE/receipt "${CASHIER[@]}" | jq '{receiptNo, total, changeDue, lines: [.lines[] | {product, unit, qty, batches}]}'
+```
+
+Closing the shift is blind: send only the counted cash, the verdict comes back after.
+
+```bash
+curl -s -X POST $API/tenants/$TENANT/shifts/$SHIFT/close "${CASHIER[@]}" -H "content-type: application/json" \
+  -d '{"countedCash":209000}' | jq '{outcome, expected: .shift.expectedCash, variance: .shift.variance}'
 ```
 
 The full route list is in `CLAUDE.md` (`apps/api`) and `apps/api/src/app.ts`.

@@ -2,6 +2,7 @@
 
 ## [UNRELEASED]
 
+- M1 counter backend: cashier shifts with blind close and review, cash movements, idempotent sales with FEFO under row locks, split payments with change, discount limits per role, receipts, void and refund; offline sales kept with flagged conflicts; prescription-only products blocked at the counter in the database
 - CSV import of products and opening stock (dry run, per-line problems, Indonesian Excel `;` and decimal comma, idempotent) and CSV export of products and stock
 - Branches, locations and workstations; privileged batch correction; product category, stock levels and default location; nightly expiry and ledger reconciliation with resolvable issues; balance rebuild
 - Staff management and facility profile: email invitations through Supabase (existing accounts linked), deactivation that locks people out immediately, branch assignments, and the apotek's NIB, permit and APJ details, all audited

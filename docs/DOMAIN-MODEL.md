@@ -132,6 +132,8 @@ CashMovement (shift_id, type IN|OUT, amount, reason)
 - **S4** sale commit is idempotent on `idempotency_key`.
 - **S5** `RX_REQUIRED` or controlled products cannot be added at the OTC counter.
 
+Implemented 8 Oct 2026 (`supabase/migrations/*_m1_sales_shifts.sql`, `packages/db/src/sales.ts`): S1 is a deferred check on payments, S2 a trigger on sale insert, S3 compensating `STOCK_ADJUSTMENT` rows with reference `sale_void`, S4 the client sale id, S5 the ledger trigger. Pilot defaults still **[VALIDATE]**: line amounts round half up to whole rupiah, cashier discount limit 10 %, void only while the shift is open and nothing was refunded, tax not applied.
+
 Shift expected cash = opening float + cash sales − cash refunds ± cash movements. Variance = counted − expected.
 
 ## 8. Prescription (v1.1)

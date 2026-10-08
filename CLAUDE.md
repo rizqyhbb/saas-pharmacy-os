@@ -4,7 +4,7 @@ A multi-tenant **pharmacy operating system with POS** for Indonesian apotek. Gre
 Sibling to `pos-local/` (coffee-shop POS) and `mana-app/` (customer PWA) under
 `~/Documents/personal/pos/`.
 
-**Status: M0 Foundation in progress.** Read `docs/PRD.md` first, then
+**Status: M0 Foundation done (gate G0 met, except FND-8 backups which need hosting); M1 Counter in progress: backend done, `apps/pos` next.** Read `docs/PRD.md` first, then
 `docs/DOMAIN-MODEL.md`, then `docs/ARCHITECTURE.md`.
 
 Built so far:
@@ -20,6 +20,7 @@ Built so far:
 - `supabase/` — local Supabase (ports 5532x so it runs beside pos-local's 5432x), Auth with
   ES256 signing keys, SQL migrations as the schema source of truth:
   tenancy/identity/audit, catalogue/batches/ledger/balances, product classification,
+  M1 shifts/sales/payments/refunds (S1-S5 in the database),
   facility profile, workstations, batch correction (`app.correct_batch`), balance rebuild,
   and a nightly pg_cron job `apotek-nightly` (00:30 WIB: expire batches, raise
   `reconciliation_issues`). Everything is in schema `app`
@@ -44,7 +45,11 @@ Built so far:
   and export (products in the import format, stock) via `src/csv.ts`, products (create with units + barcodes, list/search, get, edit,
   classification, unit price, barcodes), `GET /products/:id/stock` (stock card),
   `POST /stock/opening-balances` (needs an `Idempotency-Key` UUID header) and
-  `PUT /batches/:id/status`. Non-members get 404. A product created by someone without
+  `PUT /batches/:id/status`. Counter (M1, `src/routes/counter.ts`): `POST /shifts`,
+  `GET /workstations/:id/shift`, cash movements, blind close, review, shift report,
+  `POST /sales` (Idempotency-Key = client sale id; FEFO under `app.lock_stock` row locks;
+  offline sales use `allocateForSync` and are kept with a flagged conflict), receipt,
+  void (compensating ledger rows) and refund (no restock). Non-members get 404. A product created by someone without
   `product.classify` stays unclassified and the database refuses to sell it.
   Permission matrix: `packages/domain/src/permissions.ts`, tested for all nine roles on
   every privileged route (G0-4); each audited action has a test (G0-5).
@@ -64,7 +69,7 @@ Built so far:
   for JS. Photos are Unsplash stand-ins (`src/assets/photos/CREDITS.md`).
   Open TODO: `PILOT_CONTACT_HREF` in `copy.ts` is a placeholder.
 
-Not started: `packages/contracts`, stock adjustment and opname, goods receipt, counter PIN switching, `apps/pos` (builds on `DESIGN.md` + `@apotek/ui`, via
+Not started: `packages/contracts`, stock adjustment and opname, goods receipt, held carts, counter PIN switching, `apps/pos` (builds on `DESIGN.md` + `@apotek/ui`, via
 `impeccable`), prescription state machine (v1.1, needs APJ review). No hosted Supabase
 project yet (needs owner approval and the D8 hosting/region decision).
 

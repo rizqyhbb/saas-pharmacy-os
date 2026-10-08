@@ -106,6 +106,7 @@ Meanings **in this product**. Use these words exactly in UI, code and comments.
 - **Return (customer):** goods come back. A *stock* decision (quarantine → restock/write-off/destroy), separate from the refund of money.
 - **Supplier return:** goods sent back to a supplier against a batch, with approval.
 - **Shift:** a cashier's cash session on one workstation (open float → sales → blind close).
+- **Offline conflict:** an offline sale that reaches the server after the stock it sold is gone. The sale is kept (the goods left, the customer paid); the shortfall is booked as a flagged negative and a person reconciles it. Never silently dropped.
 - **Blind close:** the cashier counts cash without seeing the expected amount; the system then computes **variance** = counted − expected (Balanced / Short / Over).
 - **COGS / HPP:** cost of goods sold from batch cost (moving-average maintained for reporting).
 - **Gross profit:** sales − COGS. Not net profit.
