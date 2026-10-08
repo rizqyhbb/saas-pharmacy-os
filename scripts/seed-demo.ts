@@ -134,6 +134,11 @@ await api(ownerToken, "PUT", `${t}/facility`, {
   operatingHours: "Senin-Sabtu 08.00-21.00",
 });
 
+const branches = (await api(ownerToken, "GET", `${t}/branches`)).body.branches;
+if (!branches[0].workstations.some((w: { name: string }) => w.name === "Kasir 1")) {
+  await api(ownerToken, "POST", `${t}/branches/${branchId}/workstations`, { name: "Kasir 1" });
+}
+
 const products = await api(ownerToken, "POST", `${t}/imports/products`, PRODUCTS_CSV);
 console.log("Products:", products.status === 201 ? "imported" : products.body.problems?.some((p: { code: string }) => p.code === "SKU_EXISTS") ? "already there" : JSON.stringify(products.body));
 
